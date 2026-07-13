@@ -1,0 +1,156 @@
+<Window x:Class="RohreZuschnittOptimierung.PipeWarehouseWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Lagerverwaltung"
+        Height="760"
+        Width="1020"
+        MinHeight="560"
+        MinWidth="860"
+        WindowState="Maximized"
+        WindowStartupLocation="CenterOwner"
+        Background="{DynamicResource AppBackgroundBrush}"
+        Foreground="{DynamicResource TextPrimaryBrush}">
+  <Grid Margin="20">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto"/>
+      <RowDefinition Height="Auto"/>
+      <RowDefinition Height="*"/>
+      <RowDefinition Height="Auto"/>
+    </Grid.RowDefinitions>
+
+    <StackPanel Grid.Row="0">
+      <TextBlock Text="Lagerverwaltung"
+                 FontSize="22"
+                 FontWeight="SemiBold"
+                 Foreground="{DynamicResource SectionHeaderBrush}"/>
+      <TextBlock Margin="0,8,0,0"
+                 TextWrapping="Wrap"
+                 Foreground="{DynamicResource TextSecondaryBrush}"
+                 Text="Neumaterial und Rohreste Schritt für Schritt anlegen. Die Optimierung entnimmt automatisch aus dem Lager."/>
+    </StackPanel>
+
+    <WrapPanel Grid.Row="1" Margin="0,16,0,10">
+      <Button Content="+ Neumaterial"
+              Style="{DynamicResource SuccessButtonStyle}"
+              Click="AddNewMaterial_Click"
+              Padding="12,6"
+              Margin="0,0,8,8"
+              ToolTip="Assistent: Profil, Material, Maße, Stückzahl"/>
+      <Button Content="+ Rohrest"
+              Style="{DynamicResource SuccessButtonStyle}"
+              Click="AddRemnant_Click"
+              Padding="12,6"
+              Margin="0,0,8,8"
+              ToolTip="Assistent: Profil, Material, Maße, Länge, Stückzahl"/>
+      <Button Content="Markierte löschen"
+              Style="{DynamicResource DangerButtonStyle}"
+              Click="DeleteSelected_Click"
+              Padding="12,6"
+              Margin="0,0,8,8"
+              ToolTip="Alle Zeilen mit Häkchen löschen"/>
+      <Button x:Name="FilterAllButton"
+              Style="{DynamicResource SecondaryButtonStyle}"
+              Content="Alle"
+              Click="FilterAll_Click"
+              Padding="12,6"
+              Margin="0,0,8,8"
+              FontWeight="SemiBold"/>
+      <Button x:Name="FilterNewButton"
+              Style="{DynamicResource SecondaryButtonStyle}"
+              Content="Nur Neumaterial"
+              Click="FilterNew_Click"
+              Padding="12,6"
+              Margin="0,0,8,8"/>
+      <Button x:Name="FilterRemnantButton"
+              Style="{DynamicResource SecondaryButtonStyle}"
+              Content="Nur Reste"
+              Click="FilterRemnant_Click"
+              Padding="12,6"
+              Margin="0,0,8,8"/>
+      <Button Content="Lager neu anlegen"
+              Style="{DynamicResource SecondaryButtonStyle}"
+              Click="RebuildWarehouse_Click"
+              Padding="12,6"
+              Margin="0,0,8,8"
+              ToolTip="Alle Standard-Rohrtypen (6 m) neu anlegen"/>
+      <Button Content="Speichern"
+              Click="Save_Click"
+              Padding="14,6"
+              Margin="0,0,8,8"/>
+    </WrapPanel>
+
+    <Grid Grid.Row="2">
+      <Grid.RowDefinitions>
+        <RowDefinition Height="Auto"/>
+        <RowDefinition Height="*"/>
+      </Grid.RowDefinitions>
+      <StackPanel Grid.Row="0" Margin="0,0,0,10">
+        <TextBox x:Name="FilterTextBox"
+                 Padding="8,6"
+                 TextChanged="FilterTextBox_TextChanged"
+                 ToolTip="Suche: Profiltyp, Maße, Material"/>
+        <CheckBox x:Name="SelectAllCheckBox"
+                  Content="Alle auswählen (sichtbare Zeilen)"
+                  Margin="0,8,0,0"
+                  Checked="SelectAllCheckBox_Changed"
+                  Unchecked="SelectAllCheckBox_Changed"
+                  ToolTip="Häkchen für alle sichtbaren Bestände setzen oder entfernen"/>
+      </StackPanel>
+      <DataGrid Grid.Row="1"
+                x:Name="WarehouseGrid"
+                AutoGenerateColumns="False"
+                CanUserAddRows="False"
+                CanUserDeleteRows="False"
+                SelectionMode="Single"
+                SelectionUnit="FullRow"
+                HeadersVisibility="Column">
+        <DataGrid.Columns>
+          <DataGridCheckBoxColumn Header="✓"
+                                  Binding="{Binding IsSelected, UpdateSourceTrigger=PropertyChanged}"
+                                  Width="44"/>
+          <DataGridTextColumn Header="Art"
+                              Binding="{Binding StockTypeLabel}"
+                              IsReadOnly="True"
+                              Width="100"/>
+          <DataGridTextColumn Header="Profiltyp"
+                              Binding="{Binding ProfileKindLabel}"
+                              IsReadOnly="True"
+                              Width="110"/>
+          <DataGridTextColumn Header="Profil / Maße"
+                              Binding="{Binding ProfileDisplayName}"
+                              IsReadOnly="True"
+                              Width="*"/>
+          <DataGridTextColumn Header="Material"
+                              Binding="{Binding Material, UpdateSourceTrigger=PropertyChanged}"
+                              Width="100"/>
+          <DataGridTextColumn Header="Länge (mm)"
+                              Binding="{Binding LengthMm, UpdateSourceTrigger=PropertyChanged}"
+                              Width="100"/>
+          <DataGridTextColumn Header="Frei"
+                              Binding="{Binding Quantity, UpdateSourceTrigger=PropertyChanged}"
+                              Width="60"/>
+          <DataGridTextColumn Header="Reserviert"
+                              Binding="{Binding ReservedQuantity, UpdateSourceTrigger=PropertyChanged}"
+                              IsReadOnly="True"
+                              Width="80"/>
+        </DataGrid.Columns>
+      </DataGrid>
+    </Grid>
+
+    <Grid Grid.Row="3" Margin="0,14,0,0">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="*"/>
+        <ColumnDefinition Width="Auto"/>
+      </Grid.ColumnDefinitions>
+      <TextBlock x:Name="StatusTextBlock"
+                 VerticalAlignment="Center"
+                 Foreground="{DynamicResource TextMutedBrush}"/>
+      <Button Grid.Column="1"
+              Style="{DynamicResource SecondaryButtonStyle}"
+              Content="Schließen"
+              Click="Close_Click"
+              Padding="14,6"
+              IsCancel="True"/>
+    </Grid>
+  </Grid>
+</Window>

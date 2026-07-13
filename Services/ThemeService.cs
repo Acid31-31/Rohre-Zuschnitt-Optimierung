@@ -1,0 +1,85 @@
+using System.IO;
+using System.Windows;
+
+namespace RohreZuschnittOptimierung.Services;
+
+public static class ThemeService
+{
+  private const string SettingsFileName = "theme.txt";
+  private static ResourceDictionary? _currentThemeDictionary;
+
+  public static bool IsDarkMode { get; private set; }
+
+  public static void Initialize(Application application)
+  {
+    var isDark = LoadSavedTheme();
+    Apply(application, isDark, persist: false);
+  }
+
+  public static void Toggle(Application application)
+  {
+    Apply(application, !IsDarkMode, persist: true);
+  }
+
+  public static void Apply(Application application, bool isDark, bool persist)
+  {
+    IsDarkMode = isDark;
+
+    var themeUri = new Uri(
+      isDark ? "Themes/DarkTheme.xaml" : "Themes/LightTheme.xaml",
+      UriKind.Relative);
+
+    var themeDictionary = new ResourceDictionary { Source = themeUri };
+
+    if (_currentThemeDictionary is not null)
+      application.Resources.MergedDictionaries.Remove(_currentThemeDictionary);
+
+    application.Resources.MergedDictionaries.Add(themeDictionary);
+    _currentThemeDictionary = themeDictionary;
+
+    WindowChromeService.ApplyThemeToAllWindows(isDark);
+
+    if (persist)
+      SaveTheme(isDark);
+  }
+
+  private static bool LoadSavedTheme()
+  {
+    try
+    {
+      var path = GetSettingsPath();
+      if (!File.Exists(path))
+        return false;
+
+      var value = File.ReadAllText(path).Trim();
+      return string.Equals(value, "dark", StringComparison.OrdinalIgnoreCase);
+    }
+    catch
+    {
+      return false;
+    }
+  }
+
+  private static void SaveTheme(bool isDark)
+  {
+    try
+    {
+      var directory = Path.GetDirectoryName(GetSettingsPath())!;
+      Directory.CreateDirectory(directory);
+      File.WriteAllText(GetSettingsPath(), isDark ? "dark" : "light");
+    }
+    catch
+    {
+      // Einstellung ist optional – Fehler ignorieren.
+    }
+  }
+
+  private static string GetSettingsPath()
+  {
+    var root = Path.Combine(
+      Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+      "Rohre-Zuschnitt-Optimierung");
+
+    return Path.Combine(root, SettingsFileName);
+  }
+}

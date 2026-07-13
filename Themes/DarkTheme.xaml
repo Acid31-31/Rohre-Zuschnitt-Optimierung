@@ -1,0 +1,67 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+  <ResourceDictionary.MergedDictionaries>
+    <ResourceDictionary Source="ThemeControls.xaml"/>
+  </ResourceDictionary.MergedDictionaries>
+
+  <SolidColorBrush x:Key="AppBackgroundBrush" Color="#141B26"/>
+  <SolidColorBrush x:Key="TextPrimaryBrush" Color="#F1F5F9"/>
+  <SolidColorBrush x:Key="TextSecondaryBrush" Color="#CBD5E1"/>
+  <SolidColorBrush x:Key="TextMutedBrush" Color="#94A3B8"/>
+  <SolidColorBrush x:Key="TextFooterBrush" Color="#64748B"/>
+  <SolidColorBrush x:Key="SectionHeaderBrush" Color="#60A5FA"/>
+  <SolidColorBrush x:Key="PanelBackgroundBrush" Color="#1A2332"/>
+  <SolidColorBrush x:Key="PanelBorderBrush" Color="#334155"/>
+  <SolidColorBrush x:Key="CardBackgroundBrush" Color="#1E293B"/>
+  <SolidColorBrush x:Key="CardBorderBrush" Color="#3B4F6B"/>
+  <SolidColorBrush x:Key="CardTextSecondaryBrush" Color="#B8C5D6"/>
+  <SolidColorBrush x:Key="InputBackgroundBrush" Color="#0B1220"/>
+  <SolidColorBrush x:Key="InputBorderBrush" Color="#475569"/>
+  <SolidColorBrush x:Key="InputForegroundBrush" Color="#F8FAFC"/>
+  <SolidColorBrush x:Key="ButtonBackgroundBrush" Color="#2A3548"/>
+  <SolidColorBrush x:Key="ButtonBorderBrush" Color="#4B5D78"/>
+  <SolidColorBrush x:Key="ButtonForegroundBrush" Color="#E2E8F0"/>
+  <SolidColorBrush x:Key="ButtonHoverBackgroundBrush" Color="#35435C"/>
+  <SolidColorBrush x:Key="ButtonHoverBorderBrush" Color="#5B7190"/>
+  <SolidColorBrush x:Key="ButtonPressedBackgroundBrush" Color="#222C3D"/>
+  <SolidColorBrush x:Key="AccentButtonBackgroundBrush" Color="#2563EB"/>
+  <SolidColorBrush x:Key="AccentButtonForegroundBrush" Color="#FFFFFF"/>
+  <SolidColorBrush x:Key="AccentButtonBorderBrush" Color="#3B82F6"/>
+  <SolidColorBrush x:Key="AccentButtonHoverBackgroundBrush" Color="#3B82F6"/>
+  <SolidColorBrush x:Key="AccentButtonHoverBorderBrush" Color="#60A5FA"/>
+  <SolidColorBrush x:Key="AccentButtonPressedBackgroundBrush" Color="#1D4ED8"/>
+  <SolidColorBrush x:Key="DangerButtonBackgroundBrush" Color="#B91C1C"/>
+  <SolidColorBrush x:Key="DangerButtonForegroundBrush" Color="#FFFFFF"/>
+  <SolidColorBrush x:Key="DangerButtonBorderBrush" Color="#DC2626"/>
+  <SolidColorBrush x:Key="DangerButtonHoverBackgroundBrush" Color="#DC2626"/>
+  <SolidColorBrush x:Key="DangerButtonHoverBorderBrush" Color="#F87171"/>
+  <SolidColorBrush x:Key="DangerButtonPressedBackgroundBrush" Color="#991B1B"/>
+  <SolidColorBrush x:Key="SuccessButtonBackgroundBrush" Color="#15803D"/>
+  <SolidColorBrush x:Key="SuccessButtonForegroundBrush" Color="#FFFFFF"/>
+  <SolidColorBrush x:Key="SuccessButtonBorderBrush" Color="#22C55E"/>
+  <SolidColorBrush x:Key="SuccessButtonHoverBackgroundBrush" Color="#16A34A"/>
+  <SolidColorBrush x:Key="SuccessButtonHoverBorderBrush" Color="#4ADE80"/>
+  <SolidColorBrush x:Key="SuccessButtonPressedBackgroundBrush" Color="#166534"/>
+  <SolidColorBrush x:Key="PopupBackgroundBrush" Color="#1E293B"/>
+  <SolidColorBrush x:Key="PopupBorderBrush" Color="#475569"/>
+  <SolidColorBrush x:Key="AccentBrush" Color="#3B82F6"/>
+  <SolidColorBrush x:Key="AccentSoftBrush" Color="#1E3A5F"/>
+  <SolidColorBrush x:Key="DataGridBackgroundBrush" Color="#151F2E"/>
+  <SolidColorBrush x:Key="DataGridHeaderBackgroundBrush" Color="#1E3A5F"/>
+  <SolidColorBrush x:Key="DataGridHeaderForegroundBrush" Color="#BFDBFE"/>
+  <SolidColorBrush x:Key="DataGridRowBackgroundBrush" Color="#151F2E"/>
+  <SolidColorBrush x:Key="DataGridAlternatingRowBackgroundBrush" Color="#1A2435"/>
+  <SolidColorBrush x:Key="DataGridGridLinesBrush" Color="#334155"/>
+  <SolidColorBrush x:Key="DataGridSelectionBrush" Color="#1D4ED8"/>
+  <SolidColorBrush x:Key="ScrollBarTrackBrush" Color="#1A2332"/>
+  <SolidColorBrush x:Key="ScrollBarThumbBrush" Color="#4B5D78"/>
+  <SolidColorBrush x:Key="DiagramStockOutlineBrush" Color="#64748B"/>
+  <SolidColorBrush x:Key="DiagramWasteBrush" Color="#2A3548"/>
+  <SolidColorBrush x:Key="DiagramPieceBrush" Color="#3B82F6"/>
+  <SolidColorBrush x:Key="DiagramPieceAltBrush" Color="#2563EB"/>
+  <SolidColorBrush x:Key="DiagramPieceBorderBrush" Color="#60A5FA"/>
+  <SolidColorBrush x:Key="DiagramKerfBrush" Color="#EF4444"/>
+  <SolidColorBrush x:Key="DiagramAssemblyMiterBrush" Color="#F59E0B"/>
+
+</ResourceDictionary>

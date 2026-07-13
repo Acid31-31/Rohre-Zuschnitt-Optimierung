@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8"/>
+  <title>Arbeitsbericht – Rohre Zuschnitt Optimierung</title>
+  <style>
+    @page { margin: 18mm 16mm; }
+    body { font-family: "Segoe UI", Arial, sans-serif; font-size: 11pt; color: #1a1a1a; line-height: 1.45; max-width: 210mm; margin: 0 auto; padding: 16px; }
+    h1 { font-size: 18pt; margin: 0 0 4px; border-bottom: 2px solid #2563eb; padding-bottom: 8px; }
+    h2 { font-size: 13pt; margin: 22px 0 8px; color: #1e40af; }
+    h3 { font-size: 11pt; margin: 14px 0 6px; color: #334155; }
+    .meta { color: #444; font-size: 10pt; margin-bottom: 20px; }
+    table { width: 100%; border-collapse: collapse; margin: 10px 0 16px; font-size: 10pt; }
+    th, td { border: 1px solid #ccc; padding: 6px 8px; text-align: left; vertical-align: top; }
+    th { background: #eff6ff; font-weight: 600; }
+    td.num, th.num { text-align: right; }
+    .total { font-weight: 700; background: #f0fdf4; }
+    .highlight { background: #fef3c7; font-weight: 700; }
+    .box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 12px 14px; margin: 12px 0; }
+    .formula { font-family: Consolas, monospace; font-size: 10pt; white-space: pre-wrap; }
+    .sign { margin-top: 40px; }
+    .sign td { border: none; padding: 20px 8px 4px; width: 50%; }
+    .muted { color: #666; font-size: 9pt; }
+    ul { margin: 0 0 12px; padding-left: 22px; }
+    @media print { body { padding: 0; } }
+  </style>
+</head>
+<body>
+
+<h1>Arbeitsbericht &amp; Stundenlohn-Berechnung</h1>
+<p class="meta">
+  <strong>Projekt:</strong> Rohre Zuschnitt Optimierung · .NET 8 WPF<br/>
+  <strong>Erstellt von:</strong> Alexander Hölzer · Pfarerrosenkranz Str. 9 · 56642 Kruft<br/>
+  <strong>E-Mail:</strong> hoelzer_alex@yahoo.de · <strong>Tel.:</strong> 0170 8333993<br/>
+  <strong>Leistungszeitraum:</strong> 10.07.2026 – 12.07.2026 · <strong>Bericht:</strong> 12.07.2026
+</p>
+
+<h2>1. Kurzbeschreibung</h2>
+<p>
+  Desktop-Anwendung zur <strong>Optimierung von Rohrzuschnitten</strong> mit
+  <strong>Lagerverwaltung</strong> (Profil + Materialart), <strong>Auftragsführung</strong>,
+  Reservierung, Bestellliste-PDF und automatischer Zuschnitt-PDF.
+</p>
+
+<h2>2. Erbrachte Leistungen</h2>
+<h3>Phase 1 — Kern (10.–11.07.2026)</h3>
+<table>
+  <tr><th>Nr.</th><th>Leistung</th><th>Status</th></tr>
+  <tr><td>1</td><td>WPF-Projekt (.NET 8), getrennt von DOK-V01</td><td>✓</td></tr>
+  <tr><td>2</td><td>Stangenoptimierung (Best-Fit), 6000 mm, Kerf 3 mm</td><td>✓</td></tr>
+  <tr><td>3</td><td>PDF-Zeichnungen einlesen (PdfPig)</td><td>✓</td></tr>
+  <tr><td>4</td><td>Manuelle Eingabe, Teilliste, Bearbeiten</td><td>✓</td></tr>
+  <tr><td>5–8</td><td>Gehrung, gemeinsame Schnitte, Sägefolge, Packung nach Gehrung</td><td>✓</td></tr>
+  <tr><td>9–12</td><td>Rohreste, Grafik, PDF-Export, Hell-/Dunkelmodus</td><td>✓</td></tr>
+</table>
+
+<h3>Phase 2 — Lager, UI &amp; Aufträge (12.07.2026)</h3>
+<table>
+  <tr><th>Nr.</th><th>Leistung</th><th>Status</th></tr>
+  <tr><td>13</td><td>Lagerverwaltung (63 Profile), Assistent Stahl/Edelstahl/Aluminium</td><td>✓</td></tr>
+  <tr><td>14</td><td>Profilwahl zum Schneiden mit Materialfilter</td><td>✓</td></tr>
+  <tr><td>15</td><td>Reservierung + Rohrest-Rückbuchung ins Lager</td><td>✓</td></tr>
+  <tr><td>16</td><td>Bestellliste-PDF bei Fehlmenge</td><td>✓</td></tr>
+  <tr><td>17–21</td><td>Menü, PDF-Einstellungen, volle Stangengrafik, UI-Farben, Doku</td><td>✓</td></tr>
+  <tr><td>23</td><td><strong>Manuelle Auftragsnummer</strong> (Pflichtfeld, in PDFs)</td><td>✓</td></tr>
+  <tr><td>24</td><td><strong>Auftragsverwaltung</strong> (Wareneingang, Schnitt verbuchen)</td><td>✓</td></tr>
+</table>
+
+<h2>3. Arbeitszeitnachweis</h2>
+<p>Aus <strong>Cursor-Chat-Zeitstempeln</strong>. Pausen &gt; 20&nbsp;Min nicht gezählt.</p>
+<table>
+  <tr><th>Phase</th><th>Zeitraum</th><th class="num">Dauer</th></tr>
+  <tr><td>Phase 1</td><td>10.07. 17:57 – 11.07. 09:53</td><td class="num">2,9 Std.</td></tr>
+  <tr><td>Phase 2</td><td>12.07. 08:57 – 11:02</td><td class="num">2,1 Std.</td></tr>
+  <tr class="total"><td colspan="2"><strong>Gesamtsumme</strong></td><td class="num"><strong>5,0 Std.</strong></td></tr>
+</table>
+
+<h2>4. Stundenlohn-Berechnung</h2>
+<div class="box">
+  <div class="formula">5,0 Std. × Stundensatz = Netto-Honorar</div>
+</div>
+<table>
+  <tr><th>Stundensatz</th><th class="num">Netto (€)</th></tr>
+  <tr><td>65 €/h (intern)</td><td class="num">325,00</td></tr>
+  <tr class="highlight"><td>85 €/h (Standard)</td><td class="num">425,00</td></tr>
+  <tr><td>95 €/h (Spezialist)</td><td class="num">475,00</td></tr>
+</table>
+<table>
+  <tr><th>Position</th><th class="num">Betrag</th></tr>
+  <tr><td>Phase 1 (2,9 Std. × 85 €/h)</td><td class="num">246,50 €</td></tr>
+  <tr><td>Phase 2 (2,1 Std. × 85 €/h)</td><td class="num">178,50 €</td></tr>
+  <tr class="total"><td><strong>Netto</strong></td><td class="num"><strong>425,00 €</strong></td></tr>
+  <tr><td>USt. 19 %</td><td class="num">80,75 €</td></tr>
+  <tr class="total"><td><strong>Brutto</strong></td><td class="num"><strong>505,75 €</strong></td></tr>
+</table>
+<p class="muted">Bei Kleinunternehmerregelung § 19 UStG: Netto = Brutto.</p>
+
+<h2>5. Projektwert &amp; Betriebsnutzen</h2>
+<table>
+  <tr><th>Kennzahl</th><th>Wert</th></tr>
+  <tr><td>Entwicklungswert (Ersatz)</td><td><strong>ca. 425–475 € netto</strong></td></tr>
+  <tr><td>Nutzen/Jahr (Zeit + Material)</td><td><strong>ca. 4.500–5.500 €</strong></td></tr>
+  <tr><td>Amortisation</td><td><strong>unter 1 Monat</strong> bei regelmäßiger Nutzung</td></tr>
+  <tr><td>Verkaufswert (Einmal-Lizenz)</td><td><strong>500 €</strong> (Kollegenpreis)</td></tr>
+</table>
+
+<h2>6. Lieferumfang</h2>
+<ul>
+  <li>Quellcode: <code>E:\Programierung\Rohre-Zuschnitt-Optimierung</code></li>
+  <li>EXE: <code>bin\Debug\net8.0-windows\RohreZuschnittOptimierung.exe</code></li>
+  <li>Lager: <code>pipe-warehouse.xml</code></li>
+  <li>Aufträge: <code>pipe-orders.xml</code></li>
+  <li>PDF &amp; Einstellungen: <code>%LOCALAPPDATA%\Rohre-Zuschnitt-Optimierung\</code></li>
+  <li>Doku: Produktbeschreibung &amp; dieser Arbeitsbericht</li>
+</ul>
+
+<table class="sign">
+  <tr>
+    <td>Auftraggeber<br/><br/>_________________________<br/>Ort, Datum</td>
+    <td>Entwickler<br/><br/>_________________________<br/>Kruft, 12.07.2026</td>
+  </tr>
+</table>
+
+<p class="muted" style="margin-top:24px;">Arbeitsbericht Rohre Zuschnitt Optimierung · Stand 12.07.2026</p>
+
+</body>
+</html>

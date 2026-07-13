@@ -1,0 +1,21 @@
+---
+description: Nach Dokumentationsänderungen HTML-PDF erzeugen und öffnen
+globs: **/{ARBEITSBERICHT*,PRODUKTBESCHREIBUNG*,BRIEF_*}.*
+alwaysApply: false
+---
+
+# Dokumentation → PDF (Pflicht)
+
+Wenn `ARBEITSBERICHT_Rohre-Zuschnitt` oder `PRODUKTBESCHREIBUNG_Kunde` geändert wird (`.md` oder `.html`):
+
+1. **HTML synchron halten** — bei MD-Änderungen die passende `.html` mit aktualisieren.
+2. **PDF neu erzeugen** mit `Export-HtmlToPdf.ps1`:
+   ```powershell
+   .\Export-HtmlToPdf.ps1 -HtmlPath "Dokumentation\_Quellen\PRODUKTBESCHREIBUNG_Kunde.html"
+   Move-Item -Force "Dokumentation\_Quellen\PRODUKTBESCHREIBUNG_Kunde.pdf" "Dokumentation\PRODUKTBESCHREIBUNG_Kunde.pdf"
+   .\Export-HtmlToPdf.ps1 -HtmlPath "ARBEITSBERICHT_Rohre-Zuschnitt.html" -Open
+   ```
+3. **PDF öffnen** (`-Open` oder `Start-Process`) — nicht nur die alte Datei öffnen.
+4. Nutzer kurz informieren: welche PDF(s) aktualisiert wurden.
+
+Ohne Nachfrage überspringen, wenn der Nutzer ausdrücklich „kein PDF“ sagt.

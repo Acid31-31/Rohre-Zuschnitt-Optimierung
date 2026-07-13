@@ -1,0 +1,331 @@
+﻿<Window x:Class="RohreZuschnittOptimierung.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:controls="clr-namespace:RohreZuschnittOptimierung.Controls"
+        mc:Ignorable="d"
+        Title="Rohre Zuschnitt Optimierung"
+        Height="760"
+        Width="1180"
+        MinHeight="620"
+        MinWidth="980"
+        WindowState="Maximized"
+        Background="{DynamicResource AppBackgroundBrush}"
+        Foreground="{DynamicResource TextPrimaryBrush}"
+        WindowStartupLocation="CenterScreen">
+  <DockPanel Background="{DynamicResource AppBackgroundBrush}">
+    <Menu DockPanel.Dock="Top">
+      <MenuItem Header="Datei">
+        <MenuItem x:Name="ExportPdfMenuItem"
+                  Header="Zuschnittplan als PDF speichern …"
+                  Click="ExportPdf_Click"
+                  IsEnabled="False"/>
+        <Separator/>
+        <MenuItem Header="Beenden"
+                  Click="ExitApplication_Click"/>
+      </MenuItem>
+      <MenuItem Header="Lager">
+        <MenuItem Header="Lagerverwaltung …"
+                  Click="OpenWarehouse_Click"/>
+        <MenuItem Header="Aufträge …"
+                  Click="OpenOrders_Click"/>
+      </MenuItem>
+      <MenuItem Header="Einstellungen">
+        <MenuItem Header="PDF-Einstellungen …"
+                  Click="OpenPdfSettings_Click"/>
+        <MenuItem x:Name="ThemeToggleMenuItem"
+                  Header="Hellmodus"
+                  Click="ThemeToggleButton_Click"/>
+      </MenuItem>
+      <MenuItem Header="Info">
+        <MenuItem Header="Nach Updates suchen …"
+                  Click="CheckForUpdates_Click"/>
+        <MenuItem Header="Über die Anwendung …"
+                  Click="ShowAbout_Click"/>
+      </MenuItem>
+    </Menu>
+
+    <Grid Margin="24">
+      <Grid.RowDefinitions>
+        <RowDefinition Height="Auto"/>
+        <RowDefinition Height="*"/>
+        <RowDefinition Height="Auto"/>
+      </Grid.RowDefinitions>
+
+      <Grid Grid.Row="0" Margin="0,0,0,16">
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="Auto"/>
+          <ColumnDefinition Width="320"/>
+        </Grid.ColumnDefinitions>
+        <TextBlock Text="Auftragsnummer"
+                   FontWeight="SemiBold"
+                   VerticalAlignment="Center"
+                   Margin="0,0,12,0"/>
+        <TextBox x:Name="OrderReferenceTextBox"
+                 Grid.Column="1"
+                 MaxLength="80"
+                 ToolTip="Wird in PDFs und Lagerreservierung verwendet"/>
+      </Grid>
+
+    <Grid Grid.Row="1" Margin="0,0,0,20">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="430"/>
+        <ColumnDefinition Width="20"/>
+        <ColumnDefinition Width="*"/>
+      </Grid.ColumnDefinitions>
+
+      <ScrollViewer Grid.Column="0" VerticalScrollBarVisibility="Auto">
+        <StackPanel>
+          <TextBlock Text="Planung" Style="{DynamicResource SectionHeaderTextStyle}" Margin="0,0,0,12"/>
+
+          <TextBlock Text="Rohrprofil zum Schneiden" FontWeight="SemiBold" Margin="0,0,0,4"/>
+          <Button x:Name="SelectCutProfileButton"
+                  Content="Profil wählen …"
+                  Click="SelectCutProfile_Click"
+                  HorizontalAlignment="Stretch"
+                  Padding="12,8"
+                  Margin="0,0,0,4"
+                  ToolTip="Profil und Materialart (Stahl, Edelstahl, Aluminium) für diese Optimierung"/>
+          <TextBlock x:Name="CutProfileDisplayTextBlock"
+                     Foreground="{DynamicResource AccentBrush}"
+                     FontWeight="SemiBold"
+                     Margin="0,0,0,4"
+                     TextWrapping="Wrap"
+                     Text="Noch kein Profil gewählt"/>
+          <TextBlock x:Name="WarehouseStatusTextBlock"
+                     Foreground="{DynamicResource TextMutedBrush}"
+                     Margin="0,0,0,12"
+                     TextWrapping="Wrap"
+                     Text="Profil und Materialart wählen — nur passender Lagerbestand wird verwendet."/>
+
+          <TextBlock Text="Originalstange (mm)" Margin="0,0,0,4"/>
+          <TextBox x:Name="StockLengthTextBox" Text="6000" Margin="0,0,0,4"/>
+          <TextBlock Foreground="{DynamicResource TextMutedBrush}" Margin="0,0,0,12" Text="= 6,0 m Neuware (wird nur bei Bedarf verwendet)"/>
+
+          <TextBlock Text="Material aus Lager" FontWeight="SemiBold" Margin="0,0,0,8"/>
+          <TextBlock Foreground="{DynamicResource TextMutedBrush}" Margin="0,0,0,8"
+                     TextWrapping="Wrap"
+                     Text="Wird aus dem Lager geladen (Button „Lager“ oben)."/>
+          <DataGrid x:Name="RemnantsGrid"
+                    AutoGenerateColumns="False"
+                    CanUserAddRows="False"
+                    CanUserDeleteRows="False"
+                    IsReadOnly="True"
+                    SelectionMode="Single"
+                    SelectionUnit="FullRow"
+                    HeadersVisibility="Column"
+                    Height="100"
+                    Margin="0,0,0,12">
+            <DataGrid.Columns>
+              <DataGridTextColumn Header="Länge (mm)"
+                                  Binding="{Binding LengthMm, UpdateSourceTrigger=PropertyChanged}"
+                                  Width="*"/>
+              <DataGridTextColumn Header="Stück"
+                                  Binding="{Binding Quantity, UpdateSourceTrigger=PropertyChanged}"
+                                  Width="60"/>
+            </DataGrid.Columns>
+          </DataGrid>
+          <TextBlock Foreground="{DynamicResource TextMutedBrush}" Margin="0,0,0,12"
+                     TextWrapping="Wrap"
+                     Text="Rohreste werden zuerst verbraucht (z. B. 800 mm), danach neue 6000-mm-Stangen."/>
+
+          <TextBlock Text="Schnittbreite (mm)" Margin="0,0,0,4"/>
+          <TextBox x:Name="KerfTextBox" Text="3" Margin="0,0,0,20"/>
+
+          <TextBlock Text="PDF-Zeichnung" FontWeight="SemiBold" Margin="0,0,0,8"/>
+          <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+            <Button Content="PDF-Ordner wählen"
+                    Style="{DynamicResource SecondaryButtonStyle}"
+                    Click="ChoosePdfFolder_Click"
+                    Padding="12,6"
+                    Margin="0,0,8,0"/>
+            <Button Content="Neu einlesen"
+                    Style="{DynamicResource SecondaryButtonStyle}"
+                    Click="ReloadPdfFolder_Click"
+                    Padding="12,6"/>
+          </StackPanel>
+          <TextBlock x:Name="PdfFolderTextBlock"
+                     TextWrapping="Wrap"
+                     Foreground="{DynamicResource TextMutedBrush}"
+                     Margin="0,0,0,8"
+                     Text="Noch kein PDF-Ordner gewählt."/>
+
+          <TextBlock Text="Zeichnung (Dropdown)" Margin="0,0,0,4"/>
+          <ComboBox x:Name="PdfComboBox"
+                    DisplayMemberPath="FileName"
+                    SelectionChanged="PdfComboBox_SelectionChanged"
+                    Margin="0,0,0,8"/>
+
+          <TextBlock x:Name="AnalysisTextBlock"
+                     TextWrapping="Wrap"
+                     Foreground="{DynamicResource TextSecondaryBrush}"
+                     Margin="0,0,0,12"
+                     Text="PDF auswählen – Länge und Gehrung werden automatisch vorgeschlagen."/>
+
+          <TextBlock Text="Manuelle Eingabe" Style="{DynamicResource SectionHeaderTextStyle}" Margin="0,0,0,8"/>
+          <Grid Margin="0,0,0,12">
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*"/>
+              <ColumnDefinition Width="12"/>
+              <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+              <RowDefinition Height="Auto"/>
+              <RowDefinition Height="Auto"/>
+              <RowDefinition Height="Auto"/>
+              <RowDefinition Height="Auto"/>
+              <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <TextBlock Grid.Row="0" Grid.Column="0" Text="Rohrlänge (mm)" Margin="0,0,0,4"/>
+            <TextBox Grid.Row="1" Grid.Column="0" x:Name="PartLengthTextBox" Margin="0,0,0,8"/>
+
+            <TextBlock Grid.Row="0" Grid.Column="2" Text="Stückzahl" Margin="0,0,0,4"/>
+            <TextBox Grid.Row="1" Grid.Column="2" x:Name="PartQuantityTextBox" Text="1" Margin="0,0,0,8"/>
+
+            <TextBlock Grid.Row="2" Grid.Column="0" Text="Gehrung Ende A (°)" Margin="0,0,0,4"/>
+            <TextBox Grid.Row="3" Grid.Column="0" x:Name="MiterEnd1TextBox" Text="0"/>
+
+            <TextBlock Grid.Row="2" Grid.Column="2" Text="Gehrung Ende B (°)" Margin="0,0,0,4"/>
+            <TextBox Grid.Row="3" Grid.Column="2" x:Name="MiterEnd2TextBox" Text="0"/>
+
+            <TextBlock Grid.Row="4" Grid.Column="0" Grid.ColumnSpan="3"
+                       Foreground="{DynamicResource TextMutedBrush}"
+                       Text="0° oder 90° = lotrecht. Gehrung z.B. 45. Beide Enden möglich (45/45)."
+                       TextWrapping="Wrap"
+                       Margin="0,8,0,0"/>
+          </Grid>
+
+          <StackPanel Orientation="Horizontal" Margin="0,0,0,20">
+            <Button x:Name="AddPartButton"
+                    Content="Zur Teilliste hinzufügen"
+                    Click="AddPartFromPdf_Click"
+                    Padding="14,6"
+                    FontWeight="SemiBold"
+                    Margin="0,0,8,0"
+                    ToolTip="Optional – bei Optimieren wird die Eingabe automatisch übernommen."/>
+            <Button Content="Leere Zeile"
+                    Style="{DynamicResource SecondaryButtonStyle}"
+                    Click="AddPartRow_Click"
+                    Padding="12,6"/>
+          </StackPanel>
+
+          <TextBlock Text="Teilliste" Style="{DynamicResource SectionHeaderTextStyle}" Margin="0,0,0,8"/>
+          <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+            <Button Content="Bearbeiten"
+                    Style="{DynamicResource SecondaryButtonStyle}"
+                    Click="EditSelectedPart_Click"
+                    Padding="12,6"
+                    Margin="0,0,8,0"
+                    ToolTip="Ausgewählte Zeile in die manuelle Eingabe laden"/>
+            <Button Content="Alles löschen"
+                    Style="{DynamicResource DangerButtonStyle}"
+                    Click="ClearAll_Click"
+                    Padding="12,6"
+                    ToolTip="Teilliste, Eingabe und Schnittplan zurücksetzen"/>
+          </StackPanel>
+          <DataGrid x:Name="PartsGrid"
+                    AutoGenerateColumns="False"
+                    CanUserAddRows="True"
+                    CanUserDeleteRows="True"
+                    SelectionMode="Single"
+                    SelectionUnit="FullRow"
+                    HeadersVisibility="Column"
+                    Height="220"
+                    Margin="0,0,0,12">
+            <DataGrid.Columns>
+              <DataGridTextColumn Header="Zeichnung"
+                                  Binding="{Binding DrawingName, UpdateSourceTrigger=PropertyChanged}"
+                                  Width="120"/>
+              <DataGridTextColumn Header="Länge (mm)"
+                                  Binding="{Binding LengthMm, UpdateSourceTrigger=PropertyChanged}"
+                                  Width="90"/>
+              <DataGridTextColumn Header="Gehr. A"
+                                  Binding="{Binding MiterEnd1Deg, UpdateSourceTrigger=PropertyChanged}"
+                                  Width="60"/>
+              <DataGridTextColumn Header="Gehr. B"
+                                  Binding="{Binding MiterEnd2Deg, UpdateSourceTrigger=PropertyChanged}"
+                                  Width="60"/>
+              <DataGridTextColumn Header="Stück"
+                                  Binding="{Binding Quantity, UpdateSourceTrigger=PropertyChanged}"
+                                  Width="50"/>
+            </DataGrid.Columns>
+          </DataGrid>
+
+          <Button Content="Optimieren"
+                  Click="Optimize_Click"
+                  Padding="18,8"
+                  FontSize="14"
+                  HorizontalAlignment="Left"/>
+        </StackPanel>
+      </ScrollViewer>
+
+      <Border Grid.Column="2"
+              Padding="16"
+              BorderBrush="{DynamicResource PanelBorderBrush}"
+              BorderThickness="1"
+              CornerRadius="6"
+              Background="{DynamicResource PanelBackgroundBrush}">
+        <DockPanel LastChildFill="True">
+          <Grid DockPanel.Dock="Top" Margin="0,0,0,12">
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*"/>
+              <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <TextBlock Grid.Column="0"
+                       Text="Schnittplan"
+                       Style="{DynamicResource SectionHeaderTextStyle}"
+                       VerticalAlignment="Center"/>
+            <Button Grid.Column="1"
+                    x:Name="ExportPdfButton"
+                    Content="Als PDF speichern"
+                    Click="ExportPdf_Click"
+                    Padding="14,6"
+                    IsEnabled="False"
+                    ToolTip="Zuschnittplan als PDF an anderem Ort speichern (nach Optimieren öffnet sich die PDF automatisch)"/>
+          </Grid>
+
+          <TextBlock x:Name="SummaryTextBlock"
+                     DockPanel.Dock="Top"
+                     TextWrapping="Wrap"
+                     Foreground="{DynamicResource TextSecondaryBrush}"
+                     Margin="0,0,0,12"
+                     Text="Noch keine Berechnung."/>
+
+          <ScrollViewer VerticalScrollBarVisibility="Auto">
+            <ItemsControl x:Name="PlanItemsControl">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                  <Border Margin="0,0,0,14"
+                          Padding="12"
+                          BorderBrush="{DynamicResource CardBorderBrush}"
+                          BorderThickness="1"
+                          CornerRadius="4"
+                          Background="{DynamicResource CardBackgroundBrush}">
+                    <StackPanel>
+                      <TextBlock FontWeight="SemiBold" Text="{Binding Header}"/>
+                      <controls:PipeCutBarDiagram Margin="0,10,0,8"
+                                                  Height="168"
+                                                  BarPlan="{Binding Bar}"
+                                                  StockLengthMm="{Binding StockLengthMm}"
+                                                  KerfMm="{Binding KerfMm}"/>
+                      <TextBlock TextWrapping="Wrap"
+                                 Foreground="{DynamicResource CardTextSecondaryBrush}"
+                                 Text="{Binding Details}"/>
+                    </StackPanel>
+                  </Border>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </ScrollViewer>
+        </DockPanel>
+      </Border>
+    </Grid>
+
+    <TextBlock Grid.Row="2"
+               Foreground="{DynamicResource TextFooterBrush}"
+               Text="PDF-Textanalyse · Stange 6000 mm · Schnitt 3 mm"/>
+    </Grid>
+  </DockPanel>
+</Window>
