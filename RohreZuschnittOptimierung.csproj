@@ -1,24 +1,39 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <TargetFramework>net8.0-windows</TargetFramework>
+    <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
     <AssemblyName>RohreZuschnittOptimierung</AssemblyName>
     <RootNamespace>RohreZuschnittOptimierung</RootNamespace>
-    <ApplicationIcon />
+    <ApplicationIcon>Assets\AppIcon.ico</ApplicationIcon>
     <AssemblyTitle>Rohre Zuschnitt Optimierung</AssemblyTitle>
     <Product>Rohre Zuschnitt Optimierung</Product>
-    <Version>1.0.1</Version>
-    <AssemblyVersion>1.0.0.1</AssemblyVersion>
-    <FileVersion>1.0.0.1</FileVersion>
+    <Version>1.0.19</Version>
+    <AssemblyVersion>1.0.0.19</AssemblyVersion>
+    <FileVersion>1.0.0.19</FileVersion>
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Docnet.Core" Version="2.6.0" />
     <PackageReference Include="PDFsharp" Version="6.2.0" />
     <PackageReference Include="UglyToad.PdfPig" Version="1.7.0-custom-5" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Remove="tools\**" />
+    <EmbeddedResource Remove="tools\**" />
+    <None Remove="tools\**" />
+    <Page Remove="tools\**" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Resource Include="Assets\AppIcon.ico" />
+    <None Include="LICENSE_DE.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="CodeSigning.cer" CopyToOutputDirectory="PreserveNewest" Condition="Exists('CodeSigning.cer')" />
+    <None Include="native\pdfium.dll" CopyToOutputDirectory="PreserveNewest" Link="pdfium.dll" Condition="Exists('native\pdfium.dll')" />
   </ItemGroup>
 
 </Project>

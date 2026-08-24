@@ -7,5 +7,14 @@ obj/
 *.log
 build-log.txt
 Release-Version/
+USB-Version/
+Test-Update/
+vendor/
+CodeSigning.cer
+cert/
+*.pfx
 .DS_Store
 Thumbs.db
+~$*.xlsx
+
+*_wpftmp.csproj

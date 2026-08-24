@@ -1,0 +1,66 @@
+================================================================================
+LIZENZ- UND RECHTLICHE INFORMATIONEN
+Rohre Zuschnitt Optimierung
+================================================================================
+
+Entwickler:     Alexander Hoelzer
+Lizenztyp:      Proprietaere Einzellizenz
+Version:        1.0
+
+================================================================================
+1. URHEBERRECHT
+================================================================================
+
+Copyright (c) 2026 Alexander Hoelzer. Alle Rechte vorbehalten.
+
+Die Software "Rohre Zuschnitt Optimierung" ist urheberrechtlich geschuetzt.
+Ohne vorherige schriftliche Zustimmung des Entwicklers ist es nicht gestattet,
+die Software zu kopieren, zu veraendern, zu verbreiten oder oeffentlich
+zugaenglich zu machen.
+
+================================================================================
+2. NUTZUNGSRECHT
+================================================================================
+
+Mit Erwerb einer Lizenz erhalten Sie ein nicht-exklusives, nicht
+uebertragbares Recht zur Nutzung der Software auf den vereinbarten Geraeten.
+
+Die Einrichtung erfolgt portabel im gewaehlten Ordner (USB oder Desktop):
+
+  z. B. Desktop\Rohre-Zuschnitt-R1\
+
+Keine Festinstallation unter C:\Program Files erforderlich.
+
+================================================================================
+3. BENUTZERDATEN
+================================================================================
+
+Arbeitsdaten (Lager, Auftraege, PDFs):
+
+  <Programmordner>\Daten\
+
+Alles bleibt portabel im Ordner auf USB oder Desktop.
+
+================================================================================
+4. UPDATES
+================================================================================
+
+Updates werden ueber GitHub-Releases bereitgestellt. Die installierte Version
+prueft automatisch auf verfuegbare Aktualisierungen.
+
+================================================================================
+5. HAFTUNGSAUSSCHLUSS
+================================================================================
+
+Die Software wird ohne Gewaehr bereitgestellt. Der Entwickler haftet nicht
+fuer Schaeden, die durch die Nutzung oder Nichtnutzbarkeit der Software
+entstehen, soweit gesetzlich zulaessig.
+
+================================================================================
+6. KONTAKT
+================================================================================
+
+Alexander Hoelzer
+E-Mail: hoelzer_alex@yahoo.de
+
+================================================================================

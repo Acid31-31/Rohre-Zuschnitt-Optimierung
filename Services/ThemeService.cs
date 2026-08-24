@@ -45,19 +45,29 @@ public static class ThemeService
 
   private static bool LoadSavedTheme()
   {
-    try
-    {
-      var path = GetSettingsPath();
-      if (!File.Exists(path))
-        return false;
+    var portablePath = GetSettingsPath();
+    var legacyPath = Path.Combine(AppInfo.LegacyUserDataDirectory, SettingsFileName);
 
-      var value = File.ReadAllText(path).Trim();
-      return string.Equals(value, "dark", StringComparison.OrdinalIgnoreCase);
-    }
-    catch
+    foreach (var path in new[] { portablePath, legacyPath })
     {
-      return false;
+      if (!File.Exists(path))
+        continue;
+
+      try
+      {
+        var value = File.ReadAllText(path).Trim();
+        var isDark = string.Equals(value, "dark", StringComparison.OrdinalIgnoreCase);
+        if (!string.Equals(path, portablePath, StringComparison.OrdinalIgnoreCase))
+          SaveTheme(isDark);
+
+        return isDark;
+      }
+      catch
+      {
+      }
     }
+
+    return true;
   }
 
   private static void SaveTheme(bool isDark)
@@ -74,12 +84,6 @@ public static class ThemeService
     }
   }
 
-  private static string GetSettingsPath()
-  {
-    var root = Path.Combine(
-      Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-      "Rohre-Zuschnitt-Optimierung");
-
-    return Path.Combine(root, SettingsFileName);
-  }
+  private static string GetSettingsPath() =>
+    Path.Combine(AppInfo.UserDataDirectory, SettingsFileName);
 }

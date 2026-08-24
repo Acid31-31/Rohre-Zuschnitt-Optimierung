@@ -34,7 +34,23 @@ public static class CutOptimizationService
       throw new InvalidOperationException("Keine Teile zum Optimieren vorhanden.");
 
     if (pieces.Any(piece => piece.LengthMm > originalStockLengthMm))
-      throw new InvalidOperationException("Mindestens ein Teil ist länger als die Originalstange.");
+    {
+      var oversized = pieces
+        .Where(piece => piece.LengthMm > originalStockLengthMm)
+        .GroupBy(piece => (piece.DrawingName ?? "Teil", piece.LengthMm))
+        .Select(group =>
+          "• " + (string.IsNullOrWhiteSpace(group.Key.Item1) ? "Teil" : group.Key.Item1)
+          + ": " + group.Key.LengthMm.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture)
+          + " mm (" + group.Count() + "×)")
+        .ToList();
+
+      throw new InvalidOperationException(
+        "Mindestens ein Teil ist länger als die Originalstange ("
+        + originalStockLengthMm.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture)
+        + " mm):"
+        + Environment.NewLine
+        + string.Join(Environment.NewLine, oversized));
+    }
 
     var bars = CreateInitialBars(remnants);
     var orderedNewBars = 0;

@@ -29,3 +29,19 @@ Ausgabe: `bin\Debug\net8.0-windows\RohreZuschnittOptimierung.exe`
 ```
 
 Erstellt `RohreZuschnittOptimierung-Release.zip` mit SHA256 in den Release-Notizen. Die App prüft beim Start automatisch auf Updates.
+
+## USB-Version
+
+```powershell
+.\create-usb-version.ps1
+```
+
+Erzeugt den portablen Ordner unter `USB-Version\Rohre-Zuschnitt-Rxx`.
+
+## Absicherung (USB-Stick + GitHub)
+
+```powershell
+.\Sicherung-USB.ps1
+```
+
+Kopiert das lauffähige Programm und ein Quellcode-ZIP auf den USB-Stick (Wechsellaufwerk, z. B. `F:`). Den aktuellen Stand zusätzlich auf GitHub sichern (`git push`).

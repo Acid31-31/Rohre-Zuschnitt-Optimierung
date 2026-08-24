@@ -1,7 +1,6 @@
 using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
-using System.Reflection;
 using System.Security.Principal;
 
 namespace RohreZuschnittOptimierung.Services;
@@ -22,7 +21,7 @@ internal static class AdminElevationService
     if (IsRunningAsAdministrator())
       return true;
 
-    var exePath = Assembly.GetExecutingAssembly().Location;
+    var exePath = ApplicationHostPaths.GetHostExecutablePath();
     if (string.IsNullOrWhiteSpace(exePath) || !File.Exists(exePath))
       return false;
 

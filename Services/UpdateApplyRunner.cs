@@ -85,6 +85,8 @@ internal static class UpdateApplyRunner
     var exePath = Path.Combine(targetRoot, AppInfo.ExeFileName);
     if (File.Exists(exePath))
     {
+      DesktopShortcutService.TryCreate(exePath, out _);
+
       Process.Start(new ProcessStartInfo
       {
         FileName = exePath,

@@ -1,11 +1,11 @@
 <Window x:Class="RohreZuschnittOptimierung.PdfSettingsWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="PDF-Einstellungen"
-        Height="520"
-        Width="560"
-        MinHeight="460"
-        MinWidth="480"
+        Title="Einstellungen"
+        Height="640"
+        Width="580"
+        MinHeight="520"
+        MinWidth="500"
         WindowStartupLocation="CenterOwner"
         ResizeMode="CanResize"
         Background="{DynamicResource AppBackgroundBrush}"
@@ -19,7 +19,7 @@
     </Grid.RowDefinitions>
 
     <TextBlock Grid.Row="0"
-               Text="PDF-Einstellungen"
+               Text="Einstellungen"
                FontSize="20"
                FontWeight="SemiBold"
                Foreground="{DynamicResource SectionHeaderBrush}"/>
@@ -28,7 +28,7 @@
                Margin="0,10,0,16"
                TextWrapping="Wrap"
                Foreground="{DynamicResource TextSecondaryBrush}"
-               Text="Wählen Sie, welche Informationen im Zuschnittplan-PDF erscheinen sollen."/>
+               Text="Optimierung und PDF-Ausgabe. Originalstange und Schnittbreite gelten dauerhaft für alle Berechnungen."/>
 
     <Border Grid.Row="2"
             Padding="16"
@@ -38,8 +38,35 @@
             Background="{DynamicResource PanelBackgroundBrush}">
       <ScrollViewer VerticalScrollBarVisibility="Auto">
         <StackPanel>
-          <TextBlock Text="Allgemein"
+          <TextBlock Text="Optimierung"
                      Style="{DynamicResource SectionHeaderTextStyle}"
+                     Margin="0,0,0,10"/>
+          <TextBlock Text="Originalstange (mm)"
+                     Margin="0,0,0,4"/>
+          <TextBox x:Name="StockLengthMmTextBox"
+                   Width="120"
+                   HorizontalAlignment="Left"
+                   Margin="0,0,0,6"/>
+          <TextBlock Text="Länge der Neuware (z. B. 6000 = 6,0 m). Wird nur bei Bedarf verwendet."
+                     TextWrapping="Wrap"
+                     Foreground="{DynamicResource TextMutedBrush}"
+                     Margin="0,0,0,12"/>
+          <TextBlock Text="Schnittbreite (mm)"
+                     Margin="0,0,0,4"/>
+          <TextBox x:Name="KerfMmTextBox"
+                   Width="120"
+                   HorizontalAlignment="Left"
+                   Margin="0,0,0,6"/>
+          <TextBlock Text="Materialverlust pro Schnitt (Sägeblatt). Standard: 3 mm."
+                     TextWrapping="Wrap"
+                     Foreground="{DynamicResource TextMutedBrush}"
+                     Margin="0,0,0,16"/>
+
+          <TextBlock Text="PDF-Zuschnittplan"
+                     Style="{DynamicResource SectionHeaderTextStyle}"
+                     Margin="0,0,0,10"/>
+          <TextBlock Text="Inhalte im Zuschnittplan-PDF"
+                     Foreground="{DynamicResource TextSecondaryBrush}"
                      Margin="0,0,0,10"/>
           <CheckBox x:Name="ShowCreatedDateCheckBox"
                     Content="Erstellungsdatum"
@@ -72,7 +99,31 @@
                     Margin="0,0,0,8"/>
           <CheckBox x:Name="ShowDetailedCutSequenceCheckBox"
                     Content="Detaillierte Schnittfolge (nummerierte Schritte und Text)"
-                    Margin="0,0,0,8"/>
+                    Margin="0,0,0,16"/>
+
+          <TextBlock Text="Lokale Vision-KI (Länge &amp; Gehrung)"
+                     Style="{DynamicResource SectionHeaderTextStyle}"
+                     Margin="0,0,0,10"/>
+          <TextBlock TextWrapping="Wrap"
+                     Foreground="{DynamicResource TextSecondaryBrush}"
+                     Margin="0,0,0,10"
+                     Text="Echte KI ist im Programmordner unter AI\ mitgeliefert. Keine separate Installation. Zeichnungen gehen nur an localhost auf diesem PC – nicht ins Internet."/>
+          <CheckBox x:Name="LocalAiEnabledCheckBox"
+                    Content="Vision-KI nutzen, wenn Länge/Gehrung in PDF/STEP fehlt"
+                    IsChecked="True"
+                    Margin="0,0,0,10"/>
+          <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+            <Button x:Name="ProbeLocalAiButton"
+                    Content="KI prüfen / starten"
+                    Click="ProbeLocalAi_Click"
+                    Padding="12,6"
+                    Style="{DynamicResource SecondaryButtonStyle}"/>
+            <TextBlock x:Name="LocalAiStatusTextBlock"
+                       Margin="12,0,0,0"
+                       VerticalAlignment="Center"
+                       TextWrapping="Wrap"
+                       Foreground="{DynamicResource TextMutedBrush}"/>
+          </StackPanel>
         </StackPanel>
       </ScrollViewer>
     </Border>

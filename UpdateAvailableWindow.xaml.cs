@@ -17,9 +17,21 @@ public partial class UpdateAvailableWindow : Window
     _update = update;
     VersionTextBlock.Text =
       $"Installiert: {AppInfo.DisplayVersion}   →   Neu: {(_update.ReleaseTag.Length > 0 ? _update.ReleaseTag : "unbekannt")}";
-    NotesTextBlock.Text = string.IsNullOrWhiteSpace(_update.ReleaseNotes)
-      ? "Keine Release-Notizen."
-      : _update.ReleaseNotes.Trim();
+
+    var changeItems = ReleaseNotesFormatter.ExtractChangeItems(_update.ReleaseNotes);
+    if (changeItems.Count > 0)
+    {
+      ChangesItemsControl.ItemsSource = changeItems
+        .Select(item => "• " + item)
+        .ToList();
+      NotesTextBlock.Visibility = Visibility.Collapsed;
+    }
+    else
+    {
+      ChangesItemsControl.Visibility = Visibility.Collapsed;
+      NotesTextBlock.Visibility = Visibility.Visible;
+      NotesTextBlock.Text = ReleaseNotesFormatter.FormatForDisplay(_update.ReleaseNotes);
+    }
   }
 
   private async void UpdateButton_Click(object sender, RoutedEventArgs e)

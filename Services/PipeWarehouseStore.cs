@@ -11,10 +11,7 @@ public static class PipeWarehouseStore
   private const double DefaultStockLengthMm = CutOptimizationDefaults.StockLengthMm;
 
   public static string FilePath =>
-    Path.Combine(
-      Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-      "Rohre-Zuschnitt-Optimierung",
-      FileName);
+    Path.Combine(AppInfo.UserDataDirectory, FileName);
 
   public static List<PipeWarehouseStockItem> Load()
   {

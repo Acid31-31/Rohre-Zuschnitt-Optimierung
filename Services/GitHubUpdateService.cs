@@ -25,7 +25,8 @@ internal static class GitHubUpdateService
       cancellationToken.ThrowIfCancellationRequested();
 
       result.ReleaseTag = ExtractJsonString(json, "tag_name") ?? string.Empty;
-      result.ReleaseNotes = ExtractJsonString(json, "body") ?? string.Empty;
+      result.ReleaseNotes = ReleaseNotesFormatter.NormalizeReleaseNotes(
+        ExtractJsonString(json, "body") ?? string.Empty);
       result.ExpectedSha256 = ExtractSha256FromReleaseNotes(result.ReleaseNotes);
 
       if (!TryParseReleaseVersion(result.ReleaseTag, out var remoteVersion))
@@ -174,18 +175,251 @@ internal static class GitHubUpdateService
     if (numeric.Groups[5].Success)
       build = int.Parse(numeric.Groups[5].Value);
 
+    var revision = Regex.Match(cleaned, @"R(\d+)", RegexOptions.IgnoreCase);
+    if (revision.Success)
+      build = int.Parse(revision.Groups[1].Value);
+
     version = new Version(major, minor, build);
     return true;
   }
 
   private static async Task<string> FetchLatestReleaseJsonAsync(CancellationToken cancellationToken)
   {
+    if (AppInfo.GitHubUpdatesArePublic)
+    {
+      try
+      {
+        return await FetchLatestReleaseViaPublicWebAsync(cancellationToken).ConfigureAwait(false);
+      }
+      catch (Exception webEx)
+      {
+        try
+        {
+          return await FetchLatestReleaseViaApiAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception apiEx)
+        {
+          throw new InvalidOperationException(DescribeGitHubFetchError(webEx, apiEx));
+        }
+      }
+    }
+
+    return await FetchLatestReleaseViaApiAsync(cancellationToken).ConfigureAwait(false);
+  }
+
+  private static async Task<string> FetchLatestReleaseViaApiAsync(CancellationToken cancellationToken)
+  {
     using var client = CreateHttpClient();
     using var response = await client.GetAsync(AppInfo.GitHubLatestReleaseApiUrl, cancellationToken).ConfigureAwait(false);
     if (!response.IsSuccessStatusCode)
-      throw new InvalidOperationException($"GitHub-Release konnte nicht gelesen werden ({(int)response.StatusCode} {response.StatusCode}).");
+    {
+      var detail = await TryReadGitHubErrorMessageAsync(response, cancellationToken).ConfigureAwait(false);
+      throw new InvalidOperationException(FormatGitHubHttpError("API", response.StatusCode, detail));
+    }
 
     return await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+  }
+
+  /// <summary>
+  /// Öffentliche Releases ohne api.github.com – vermeidet das unauthentifizierte API-Rate-Limit (60/h),
+  /// das sonst als 403 Forbidden erscheint.
+  /// </summary>
+  private static async Task<string> FetchLatestReleaseViaPublicWebAsync(CancellationToken cancellationToken)
+  {
+    var tag = await ResolveLatestReleaseTagAsync(cancellationToken).ConfigureAwait(false);
+    if (string.IsNullOrWhiteSpace(tag))
+      throw new InvalidOperationException("GitHub-Release-Tag konnte nicht ermittelt werden.");
+
+    var notes = await TryLoadReleaseNotesFromAtomAsync(tag, cancellationToken).ConfigureAwait(false)
+                ?? string.Empty;
+    var assetName = BuildReleaseAssetFileName(tag);
+    var downloadUrl =
+      $"https://github.com/{AppInfo.GitHubOwner}/{AppInfo.GitHubRepo}/releases/download/{tag}/{assetName}";
+
+    // Minimales JSON im API-Format, damit die bestehende Auswertung weiterläuft.
+    return
+      "{"
+      + "\"tag_name\":\"" + EscapeJson(tag) + "\","
+      + "\"body\":\"" + EscapeJson(notes) + "\","
+      + "\"assets\":[{"
+      + "\"id\":1,"
+      + "\"name\":\"" + EscapeJson(assetName) + "\","
+      + "\"browser_download_url\":\"" + EscapeJson(downloadUrl) + "\""
+      + "}]"
+      + "}";
+  }
+
+  private static async Task<string?> ResolveLatestReleaseTagAsync(CancellationToken cancellationToken)
+  {
+    using var client = CreateHttpClient();
+    using var request = new HttpRequestMessage(
+      HttpMethod.Get,
+      $"https://github.com/{AppInfo.GitHubOwner}/{AppInfo.GitHubRepo}/releases/latest");
+    using var response = await client.SendAsync(
+      request,
+      HttpCompletionOption.ResponseHeadersRead,
+      cancellationToken).ConfigureAwait(false);
+
+    var location = response.Headers.Location?.ToString();
+    if (string.IsNullOrWhiteSpace(location) && response.RequestMessage?.RequestUri is not null)
+      location = response.RequestMessage.RequestUri.ToString();
+
+    if (string.IsNullOrWhiteSpace(location) && response.IsSuccessStatusCode)
+    {
+      var html = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+      var htmlMatch = Regex.Match(
+        html,
+        @"/releases/tag/(?<tag>v?[\w.\-]+)",
+        RegexOptions.IgnoreCase);
+      if (htmlMatch.Success)
+        return htmlMatch.Groups["tag"].Value;
+    }
+
+    if (string.IsNullOrWhiteSpace(location))
+    {
+      if (!response.IsSuccessStatusCode)
+        throw new InvalidOperationException(
+          FormatGitHubHttpError("Web", response.StatusCode, null));
+      return null;
+    }
+
+    var match = Regex.Match(location, @"/releases/tag/(?<tag>[^/?#]+)", RegexOptions.IgnoreCase);
+    return match.Success ? Uri.UnescapeDataString(match.Groups["tag"].Value) : null;
+  }
+
+  private static async Task<string?> TryLoadReleaseNotesFromAtomAsync(
+    string tag,
+    CancellationToken cancellationToken)
+  {
+    try
+    {
+      using var client = CreateHttpClient();
+      using var response = await client.GetAsync(
+        $"https://github.com/{AppInfo.GitHubOwner}/{AppInfo.GitHubRepo}/releases.atom",
+        cancellationToken).ConfigureAwait(false);
+      if (!response.IsSuccessStatusCode)
+        return null;
+
+      var atom = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+      var entries = Regex.Matches(
+        atom,
+        @"<entry>(?<body>.*?)</entry>",
+        RegexOptions.IgnoreCase | RegexOptions.Singleline);
+
+      Match? best = null;
+      foreach (Match entry in entries)
+      {
+        var body = entry.Groups["body"].Value;
+        if (body.Contains("/releases/tag/" + tag, StringComparison.OrdinalIgnoreCase)
+            || body.Contains(">" + tag + "<", StringComparison.OrdinalIgnoreCase)
+            || body.Contains(tag, StringComparison.OrdinalIgnoreCase))
+        {
+          best = entry;
+          break;
+        }
+      }
+
+      best ??= entries.Count > 0 ? entries[0] : null;
+      if (best is null)
+        return null;
+
+      var contentMatch = Regex.Match(
+        best.Groups["body"].Value,
+        @"<content[^>]*>(?<html>.*?)</content>",
+        RegexOptions.IgnoreCase | RegexOptions.Singleline);
+      if (!contentMatch.Success)
+        return null;
+
+      return HtmlToPlainText(WebUtility.HtmlDecode(contentMatch.Groups["html"].Value));
+    }
+    catch
+    {
+      return null;
+    }
+  }
+
+  private static string BuildReleaseAssetFileName(string tag)
+  {
+    if (TryParseReleaseVersion(tag, out var version) && version.Build > 0)
+      return AppInfo.UpdateAssetBaseName + "-R" + version.Build + ".zip";
+
+    var revision = Regex.Match(tag, @"R(\d+)", RegexOptions.IgnoreCase);
+    if (revision.Success)
+      return AppInfo.UpdateAssetBaseName + "-R" + revision.Groups[1].Value + ".zip";
+
+    return AppInfo.UpdateAssetFileName;
+  }
+
+  private static string HtmlToPlainText(string html)
+  {
+    if (string.IsNullOrWhiteSpace(html))
+      return string.Empty;
+
+    var text = html;
+    text = Regex.Replace(text, @"<\s*br\s*/?>", "\n", RegexOptions.IgnoreCase);
+    text = Regex.Replace(text, @"</\s*p\s*>", "\n", RegexOptions.IgnoreCase);
+    text = Regex.Replace(text, @"</\s*li\s*>", "\n", RegexOptions.IgnoreCase);
+    text = Regex.Replace(text, @"<\s*li[^>]*>", "- ", RegexOptions.IgnoreCase);
+    text = Regex.Replace(text, @"<[^>]+>", string.Empty);
+    text = WebUtility.HtmlDecode(text);
+    text = Regex.Replace(text, @"[ \t]+\n", "\n");
+    text = Regex.Replace(text, @"\n{3,}", "\n\n");
+    return text.Trim();
+  }
+
+  private static string EscapeJson(string value)
+  {
+    if (string.IsNullOrEmpty(value))
+      return string.Empty;
+
+    return value
+      .Replace("\\", "\\\\", StringComparison.Ordinal)
+      .Replace("\"", "\\\"", StringComparison.Ordinal)
+      .Replace("\r", "\\r", StringComparison.Ordinal)
+      .Replace("\n", "\\n", StringComparison.Ordinal)
+      .Replace("\t", "\\t", StringComparison.Ordinal);
+  }
+
+  private static async Task<string?> TryReadGitHubErrorMessageAsync(
+    HttpResponseMessage response,
+    CancellationToken cancellationToken)
+  {
+    try
+    {
+      var body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+      var message = ExtractJsonString(body, "message");
+      return string.IsNullOrWhiteSpace(message) ? null : message;
+    }
+    catch
+    {
+      return null;
+    }
+  }
+
+  private static string FormatGitHubHttpError(string channel, HttpStatusCode statusCode, string? detail)
+  {
+    if (statusCode is HttpStatusCode.Forbidden or (HttpStatusCode)429
+        || (!string.IsNullOrWhiteSpace(detail)
+            && detail.Contains("rate limit", StringComparison.OrdinalIgnoreCase)))
+    {
+      return "GitHub-Update vorübergehend nicht erreichbar (Rate-Limit). "
+             + "Bitte in etwa einer Stunde erneut prüfen.";
+    }
+
+    var suffix = string.IsNullOrWhiteSpace(detail) ? string.Empty : ": " + detail;
+    return $"GitHub-Release konnte nicht gelesen werden ({channel} {(int)statusCode} {statusCode}){suffix}";
+  }
+
+  private static string DescribeGitHubFetchError(Exception webEx, Exception apiEx)
+  {
+    if (apiEx.Message.Contains("Rate-Limit", StringComparison.OrdinalIgnoreCase)
+        || webEx.Message.Contains("Rate-Limit", StringComparison.OrdinalIgnoreCase))
+      return "GitHub-Update vorübergehend nicht erreichbar (Rate-Limit). "
+             + "Bitte in etwa einer Stunde erneut prüfen.";
+
+    return "GitHub-Release konnte nicht gelesen werden.\n"
+           + "Web: " + webEx.Message + "\n"
+           + "API: " + apiEx.Message;
   }
 
   private static async Task<bool> TryDownloadBrowserAssetAsync(
@@ -267,9 +501,18 @@ internal static class GitHubUpdateService
 
   private static HttpClient CreateHttpClient()
   {
-    var client = new HttpClient { Timeout = TimeSpan.FromMinutes(10) };
-    client.DefaultRequestHeaders.UserAgent.ParseAdd(AppInfo.ProductName + "/" + AppInfo.DisplayVersion);
+    var handler = new HttpClientHandler
+    {
+      AllowAutoRedirect = true,
+      MaxAutomaticRedirections = 8
+    };
+    var client = new HttpClient(handler) { Timeout = TimeSpan.FromMinutes(10) };
+    // GitHub verlangt einen gültigen User-Agent; Leerzeichen/Umlaute in ProductInfoHeaderValue vermeiden.
+    client.DefaultRequestHeaders.UserAgent.ParseAdd(
+      "RohreZuschnittOptimierung/" + AppInfo.ApplicationVersion.ToString(3));
     client.DefaultRequestHeaders.Accept.ParseAdd("application/vnd.github+json");
+    client.DefaultRequestHeaders.Accept.ParseAdd("application/atom+xml");
+    client.DefaultRequestHeaders.Accept.ParseAdd("text/html");
     return client;
   }
 
@@ -373,8 +616,55 @@ internal static class GitHubUpdateService
     return match.Success ? UnescapeJson(match.Groups[1].Value) : null;
   }
 
-  private static string UnescapeJson(string value) =>
-    (value ?? string.Empty).Replace("\\/", "/").Replace("\\\"", "\"").Replace("\\\\", "\\");
+  private static string UnescapeJson(string value)
+  {
+    if (string.IsNullOrEmpty(value))
+      return string.Empty;
+
+    var builder = new System.Text.StringBuilder(value.Length);
+    for (var index = 0; index < value.Length; index++)
+    {
+      var character = value[index];
+      if (character != '\\' || index + 1 >= value.Length)
+      {
+        builder.Append(character);
+        continue;
+      }
+
+      switch (value[++index])
+      {
+        case '"': builder.Append('"'); break;
+        case '\\': builder.Append('\\'); break;
+        case '/': builder.Append('/'); break;
+        case 'b': builder.Append('\b'); break;
+        case 'f': builder.Append('\f'); break;
+        case 'n': builder.Append('\n'); break;
+        case 'r': builder.Append('\r'); break;
+        case 't': builder.Append('\t'); break;
+        case 'u' when index + 4 < value.Length:
+          var hex = value.Substring(index + 1, 4);
+          if (ushort.TryParse(hex, System.Globalization.NumberStyles.HexNumber,
+                System.Globalization.CultureInfo.InvariantCulture, out var codePoint))
+          {
+            builder.Append((char)codePoint);
+            index += 4;
+          }
+          else
+          {
+            builder.Append('\\');
+            builder.Append('u');
+          }
+
+          break;
+        default:
+          builder.Append('\\');
+          builder.Append(value[index]);
+          break;
+      }
+    }
+
+    return builder.ToString();
+  }
 
   private static string DescribeUpdateError(Exception ex) =>
     ex is TaskCanceledException

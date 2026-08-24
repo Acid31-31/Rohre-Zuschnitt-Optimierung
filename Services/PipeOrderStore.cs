@@ -10,10 +10,7 @@ public static class PipeOrderStore
   private const string FileName = "pipe-orders.xml";
 
   public static string FilePath =>
-    Path.Combine(
-      Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-      "Rohre-Zuschnitt-Optimierung",
-      FileName);
+    Path.Combine(AppInfo.UserDataDirectory, FileName);
 
   public static List<PipeOrderRecord> Load()
   {

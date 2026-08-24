@@ -50,6 +50,25 @@ internal static class AppSecurityService
     return name.Trim();
   }
 
+  public static string ResolveSafeTargetPath(string targetFolder, string fileName)
+  {
+    var safeName = SanitizeFileName(fileName);
+    var targetPath = Path.GetFullPath(Path.Combine(targetFolder, safeName));
+    if (!IsPathInsideDirectory(targetPath, targetFolder))
+      throw new InvalidOperationException("Ungueltiger Zielpfad: " + safeName);
+
+    return targetPath;
+  }
+
+  public static bool IsPathInsideDirectory(string filePath, string directoryPath)
+  {
+    var fullFile = Path.GetFullPath(filePath);
+    var fullDir = Path.GetFullPath(directoryPath).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+    var prefix = fullDir + Path.DirectorySeparatorChar;
+    return fullFile.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)
+           || string.Equals(fullFile, fullDir, StringComparison.OrdinalIgnoreCase);
+  }
+
   public static void ExtractZipSafely(string zipFilePath, string destinationDirectory)
   {
     if (!File.Exists(zipFilePath))

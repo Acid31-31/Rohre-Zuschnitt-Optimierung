@@ -9,10 +9,7 @@ public static class PdfExportSettingsStore
   private const string FileName = "pdf-export-settings.xml";
 
   public static string FilePath =>
-    Path.Combine(
-      Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-      "Rohre-Zuschnitt-Optimierung",
-      FileName);
+    Path.Combine(AppInfo.UserDataDirectory, FileName);
 
   public static PdfExportSettings Load()
   {

@@ -30,9 +30,27 @@
             Background="{DynamicResource CardBackgroundBrush}">
       <ScrollViewer VerticalScrollBarVisibility="Auto">
         <StackPanel>
-          <TextBlock x:Name="VersionTextBlock" FontSize="14" FontWeight="SemiBold" Margin="0,0,0,8"/>
-          <TextBlock x:Name="NotesTextBlock" TextWrapping="Wrap" FontSize="12"
-                     Foreground="{DynamicResource TextSecondaryBrush}"/>
+          <TextBlock x:Name="VersionTextBlock" FontSize="14" FontWeight="SemiBold" Margin="0,0,0,10"/>
+          <TextBlock Text="Änderungen in diesem Update:"
+                     FontSize="13"
+                     FontWeight="SemiBold"
+                     Margin="0,0,0,8"/>
+          <ItemsControl x:Name="ChangesItemsControl">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate>
+                <TextBlock Text="{Binding}"
+                           TextWrapping="Wrap"
+                           FontSize="12"
+                           Foreground="{DynamicResource TextSecondaryBrush}"
+                           Margin="0,0,0,6"/>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+          <TextBlock x:Name="NotesTextBlock"
+                     TextWrapping="Wrap"
+                     FontSize="12"
+                     Foreground="{DynamicResource TextSecondaryBrush}"
+                     Visibility="Collapsed"/>
         </StackPanel>
       </ScrollViewer>
     </Border>

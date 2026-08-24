@@ -1,10 +1,12 @@
-﻿using System.Collections.ObjectModel;
+using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
+using System.IO.Compression;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Media;
 using Microsoft.Win32;
 using RohreZuschnittOptimierung.Models;
 using RohreZuschnittOptimierung.Services;
@@ -18,16 +20,24 @@ public partial class MainWindow : Window
   private List<PipeWarehouseStockItem> _warehouseItems = [];
   private PipeProfileDefinition? _cutProfile;
   private string? _cutMaterial;
-  private string? _pdfFolderPath;
+  private string? _pdfImportRoot;
+  private Brush? _pdfDropBorderDefaultBrush;
   private CutPartEntry? _editingPart;
   private CutOptimizationResult? _lastResult;
   private List<CutPartEntry> _lastParts = [];
   private WarehouseReservationResult? _lastReservation;
   private string? _lastOrderReference;
+  private readonly TrialLicenseStatus _trialStatus;
 
-  public MainWindow()
+  public MainWindow() : this(TrialLicenseService.Evaluate())
   {
+  }
+
+  public MainWindow(TrialLicenseStatus trialStatus)
+  {
+    _trialStatus = trialStatus;
     InitializeComponent();
+    Title = AppInfo.ProductName + trialStatus.TitleSuffix;
     PartsGrid.ItemsSource = _parts;
     RemnantsGrid.ItemsSource = _remnants;
     UpdateThemeToggleLabel();
@@ -37,6 +47,7 @@ public partial class MainWindow : Window
     Loaded += async (_, _) =>
     {
       WindowChromeService.ApplyTheme(this, ThemeService.IsDarkMode);
+      DesktopShortcutService.TryRepairToCurrentExe(out _);
       InitializeWarehouse();
       await CheckForUpdatesAsync(showIfCurrent: false);
     };
@@ -62,12 +73,44 @@ public partial class MainWindow : Window
         || string.IsNullOrWhiteSpace(wizard.Result.Material))
       return;
 
-    _cutProfile = wizard.Result.Profile;
-    _cutMaterial = wizard.Result.Material;
+    ApplyCutProfile(wizard.Result.Profile, wizard.Result.Material);
+  }
+
+  private void ApplyCutProfile(PipeProfileDefinition profile, string material)
+  {
+    _cutProfile = profile;
+    _cutMaterial = material;
     CutProfileDisplayTextBlock.Text = $"{_cutProfile.FullLabel} · {_cutMaterial}";
     SelectCutProfileButton.Content = "Profil ändern …";
     SyncRemnantsFromWarehouse();
     UpdateWarehouseStatus();
+  }
+
+  private bool TryApplyDetectedProfile(PdfDrawingAnalysisResult analysis, bool overwriteExisting, List<string>? notes = null)
+  {
+    if (analysis.Profile is null)
+      return false;
+
+    var material = !string.IsNullOrWhiteSpace(analysis.Material)
+      ? analysis.Material!
+      : (_cutMaterial ?? PipeMaterialTypes.Steel);
+
+    if (!overwriteExisting
+        && _cutProfile is not null
+        && !string.IsNullOrWhiteSpace(_cutMaterial))
+    {
+      if (!string.Equals(_cutProfile.Id, analysis.Profile.Id, StringComparison.OrdinalIgnoreCase)
+          || !string.Equals(_cutMaterial, material, StringComparison.OrdinalIgnoreCase))
+      {
+        notes?.Add($"{analysis.Profile.FullLabel} · {material}: anderes Profil als aktuell gewählt");
+      }
+
+      return false;
+    }
+
+    ApplyCutProfile(analysis.Profile, material);
+    notes?.Add($"Profil gesetzt: {analysis.Profile.FullLabel} · {material}");
+    return true;
   }
 
   private void OpenWarehouse_Click(object sender, RoutedEventArgs e)
@@ -91,7 +134,8 @@ public partial class MainWindow : Window
   private void OpenPdfSettings_Click(object sender, RoutedEventArgs e)
   {
     var window = new PdfSettingsWindow { Owner = this };
-    window.ShowDialog();
+    if (window.ShowDialog() == true)
+      SyncRemnantsFromWarehouse();
   }
 
   private void ThemeToggleButton_Click(object sender, RoutedEventArgs e)
@@ -108,7 +152,9 @@ public partial class MainWindow : Window
     if (_cutProfile is null || string.IsNullOrWhiteSpace(_cutMaterial))
       return;
 
-    var stockLengthMm = ParsePositiveDoubleSafe(StockLengthTextBox.Text, CutOptimizationDefaults.StockLengthMm);
+    var stockLengthMm = AppSettingsStore.Load().StockLengthMm;
+    if (stockLengthMm <= 0)
+      stockLengthMm = CutOptimizationDefaults.StockLengthMm;
     _remnants.Clear();
 
     foreach (var entry in PipeWarehouseService.BuildStockForOptimization(
@@ -137,26 +183,25 @@ public partial class MainWindow : Window
       .ToList();
     var available = stock.Where(item => item.Quantity > 0).Sum(item => item.Quantity);
     var reserved = stock.Where(item => item.ReservedQuantity > 0).Sum(item => item.ReservedQuantity);
+    var stockLengthMm = AppSettingsStore.Load().StockLengthMm;
+    if (stockLengthMm <= 0)
+      stockLengthMm = CutOptimizationDefaults.StockLengthMm;
     var original = stock
-      .Where(item => item.Quantity > 0 && Math.Abs(item.LengthMm - CutOptimizationDefaults.StockLengthMm) < 0.5)
+      .Where(item => item.Quantity > 0 && Math.Abs(item.LengthMm - stockLengthMm) < 0.5)
       .Sum(item => item.Quantity);
 
     WarehouseStatusTextBlock.Text =
-      $"{_cutProfile.FullLabel} · {_cutMaterial}: {available} frei, {reserved} reserviert ({original}× 6 m frei) — bei Optimieren wird freies Material reserviert.";
-  }
-
-  private static double ParsePositiveDoubleSafe(string text, double fallback)
-  {
-    if (double.TryParse(text.Trim().Replace(',', '.'), NumberStyles.Float, CultureInfo.InvariantCulture, out var value)
-        && value > 0)
-      return value;
-
-    return fallback;
+      $"{_cutProfile.FullLabel} · {_cutMaterial}: {available} frei, {reserved} reserviert ({original}× {FormatMm(stockLengthMm)} frei) — bei Optimieren wird freies Material reserviert.";
   }
 
   private void UpdateThemeToggleLabel()
   {
-    ThemeToggleMenuItem.Header = ThemeService.IsDarkMode ? "Hellmodus" : "Dunkelmodus";
+    var isDark = ThemeService.IsDarkMode;
+    var menuLabel = isDark ? "Hellmodus" : "Dunkelmodus";
+    var buttonLabel = isDark ? "☀ Hellmodus" : "🌙 Dunkelmodus";
+
+    ThemeToggleMenuItem.Header = menuLabel;
+    ThemeToggleHeaderButton.Content = buttonLabel;
   }
 
   private void ExitApplication_Click(object sender, RoutedEventArgs e) =>
@@ -164,10 +209,16 @@ public partial class MainWindow : Window
 
   private void ShowAbout_Click(object sender, RoutedEventArgs e)
   {
+    var trialLine = _trialStatus.IsTrialEdition
+      ? _trialStatus.SummaryText + Environment.NewLine
+      : string.Empty;
+
     MessageBox.Show(
       this,
       AppInfo.ProductName + Environment.NewLine
-      + $"Version {AppInfo.DisplayVersion}" + Environment.NewLine + Environment.NewLine
+      + $"Version {AppInfo.DisplayVersion}" + Environment.NewLine
+      + _trialStatus.VersionLine + Environment.NewLine + Environment.NewLine
+      + trialLine
       + "Rohrzuschnitt optimieren, Lagerverwaltung, Auftragsführung, Zuschnittplan-PDF." + Environment.NewLine
       + $"Updates: github.com/{AppInfo.GitHubOwner}/{AppInfo.GitHubRepo}",
       "Über die Anwendung",
@@ -235,53 +286,619 @@ public partial class MainWindow : Window
     ExportPdfMenuItem.IsEnabled = enabled;
   }
 
-  private void ChoosePdfFolder_Click(object sender, RoutedEventArgs e)
+  private void PdfDropBorder_DragEnter(object sender, DragEventArgs e) =>
+    HighlightPdfDrop(e, highlight: true);
+
+  private void PdfDropBorder_DragOver(object sender, DragEventArgs e) =>
+    HighlightPdfDrop(e, highlight: true);
+
+  private void PdfDropBorder_DragLeave(object sender, DragEventArgs e) =>
+    ResetPdfDropHighlight();
+
+  private void PdfDropBorder_Drop(object sender, DragEventArgs e)
   {
-    var dialog = new OpenFolderDialog
+    ResetPdfDropHighlight();
+    if (!TryGetDroppedPaths(e, out var paths))
+      return;
+
+    _ = ImportDrawingFilesAsync(paths);
+  }
+
+  private void PdfDropBorder_Click(object sender, MouseButtonEventArgs e)
+  {
+    var dialog = new OpenFileDialog
     {
-      Title = "Ordner mit PDF-Zeichnungen wählen"
+      Title = "PDF-/ZIP-Zeichnungen und optional Excel wählen",
+      Filter =
+        "Zeichnungen + Excel (*.pdf;*.zip;*.xlsx;*.xlsm;*.xls)|*.pdf;*.zip;*.xlsx;*.xlsm;*.xls|PDF/ZIP (*.pdf;*.zip)|*.pdf;*.zip|Excel (*.xlsx;*.xlsm;*.xls)|*.xlsx;*.xlsm;*.xls",
+      Multiselect = true
     };
 
     if (dialog.ShowDialog() != true)
       return;
 
-    _pdfFolderPath = dialog.FolderName;
-    LoadPdfFiles();
+    _ = ImportDrawingFilesAsync(dialog.FileNames);
   }
 
-  private void ReloadPdfFolder_Click(object sender, RoutedEventArgs e)
+  private void HighlightPdfDrop(DragEventArgs e, bool highlight)
   {
-    if (string.IsNullOrWhiteSpace(_pdfFolderPath))
+    if (!TryGetDroppedPaths(e, out _))
     {
-      MessageBox.Show(this, "Bitte zuerst einen PDF-Ordner wählen.", "PDF-Ordner", MessageBoxButton.OK,
-        MessageBoxImage.Information);
+      e.Effects = DragDropEffects.None;
+      e.Handled = true;
       return;
     }
 
-    LoadPdfFiles();
-  }
+    e.Effects = DragDropEffects.Copy;
+    e.Handled = true;
 
-  private void LoadPdfFiles()
-  {
-    if (string.IsNullOrWhiteSpace(_pdfFolderPath) || !Directory.Exists(_pdfFolderPath))
+    if (!highlight)
       return;
 
-    var files = Directory.EnumerateFiles(_pdfFolderPath, "*.pdf", SearchOption.TopDirectoryOnly)
-      .OrderBy(path => Path.GetFileName(path), StringComparer.OrdinalIgnoreCase)
-      .Select(path => new PdfFileOption
+    _pdfDropBorderDefaultBrush ??= PdfDropBorder.BorderBrush;
+    PdfDropBorder.BorderBrush = (Brush)FindResource("AccentBrush");
+  }
+
+  private void ResetPdfDropHighlight()
+  {
+    if (_pdfDropBorderDefaultBrush is not null)
+      PdfDropBorder.BorderBrush = _pdfDropBorderDefaultBrush;
+  }
+
+  private static bool TryGetDroppedPaths(DragEventArgs e, out string[] paths)
+  {
+    paths = [];
+    if (!e.Data.GetDataPresent(DataFormats.FileDrop))
+      return false;
+
+    paths = (e.Data.GetData(DataFormats.FileDrop) as string[]) ?? [];
+    return paths.Any(IsSupportedDrawingImportPath);
+  }
+
+  private static bool IsSupportedDrawingImportPath(string path)
+  {
+    var extension = Path.GetExtension(path);
+    return extension.Equals(".pdf", StringComparison.OrdinalIgnoreCase)
+           || extension.Equals(".zip", StringComparison.OrdinalIgnoreCase)
+           || IsExcelImportExtension(extension);
+  }
+
+  private static bool IsExcelImportExtension(string extension) =>
+    extension.Equals(".xlsx", StringComparison.OrdinalIgnoreCase)
+    || extension.Equals(".xlsm", StringComparison.OrdinalIgnoreCase)
+    || extension.Equals(".xls", StringComparison.OrdinalIgnoreCase);
+
+  private async Task ImportDrawingFilesAsync(IEnumerable<string> sourcePaths)
+  {
+    try
+    {
+      Mouse.OverrideCursor = Cursors.Wait;
+      PdfImportExpander.IsExpanded = true;
+      var pdfPaths = CollectPdfPathsFromImport(sourcePaths);
+      var files = pdfPaths
+        .OrderBy(path => Path.GetFileName(path), StringComparer.OrdinalIgnoreCase)
+        .Select(path => new PdfFileOption
+        {
+          FileName = Path.GetFileName(path),
+          FullPath = path
+        })
+        .ToList();
+
+      var notes = new List<string>();
+      IReadOnlyList<ExcelOrderQuantityRow> excelQuantities = [];
+      string? excelName = null;
+      try
       {
-        FileName = Path.GetFileName(path),
-        FullPath = path
-      })
+        var excelPath = ExcelOrderQuantityService.FindExcelFile(_pdfImportRoot ?? string.Empty);
+        if (!string.IsNullOrWhiteSpace(excelPath))
+        {
+          excelQuantities = ExcelOrderQuantityService.LoadQuantities(excelPath);
+          excelName = Path.GetFileName(excelPath);
+        }
+      }
+      catch (Exception ex)
+      {
+        notes.Add("Excel: " + ex.Message);
+      }
+
+      var excelPipeCount = excelQuantities.Count(row => row.IsPipe);
+      if (files.Count == 0 && excelPipeCount == 0)
+      {
+        MessageBox.Show(
+          this,
+          "Keine PDF-Zeichnungen und keine Rohre in der Excel gefunden.\n\nBitte PDF/ZIP und ggf. die Bestell-Excel ablegen.",
+          "Zeichnungen",
+          MessageBoxButton.OK,
+          MessageBoxImage.Information);
+        return;
+      }
+
+      PdfComboBox.ItemsSource = files;
+
+      PdfFolderTextBlock.Text = excelName is null
+        ? $"{files.Count} Zeichnung(en) geladen – Rohre werden erkannt …"
+        : $"{files.Count} Zeichnung(en) + Excel „{excelName}“ ({excelQuantities.Count} Positionen, {excelPipeCount} Rohr) – Rohre werden erkannt …";
+
+      var added = 0;
+      var skippedNotPipe = 0;
+      var skippedWrongProfile = 0;
+      var quantityFromExcel = 0;
+      var localAiHits = 0;
+      var appSettings = AppSettingsStore.Load();
+      var analyses = new List<(PdfFileOption File, PdfDrawingAnalysisResult Analysis)>();
+      var profileVotes = new Dictionary<string, (PipeProfileDefinition Profile, string Material, int Count)>(StringComparer.OrdinalIgnoreCase);
+
+      foreach (var file in files)
+      {
+        try
+        {
+          var analysis = PdfDrawingAnalysisService.Analyze(file.FullPath);
+          if (analysis.IsPipe && appSettings.LocalAiEnabled)
+          {
+            var ai = await LocalVisionCutAnalysisService.TryEnrichAsync(file.FullPath, analysis, appSettings)
+              .ConfigureAwait(true);
+            if (ai is not null)
+            {
+              if (!string.IsNullOrWhiteSpace(ai.Note) && !ai.UsedLocalAi)
+                notes.Add($"{file.FileName}: {ai.Note}");
+
+              var merged = LocalVisionCutAnalysisService.Merge(analysis, ai);
+              if (!ReferenceEquals(merged, analysis)
+                  && (merged.LengthSource == AnalysisValueSource.LocalAi
+                      || merged.MiterSource == AnalysisValueSource.LocalAi))
+              {
+                localAiHits++;
+                notes.Add($"{file.FileName}: Länge/Gehrung per Vision-KI ergänzt.");
+              }
+
+              analysis = merged;
+            }
+          }
+
+          analyses.Add((file, analysis));
+          if (!analysis.IsPipe || analysis.Profile is null)
+            continue;
+
+          var material = analysis.Material ?? PipeMaterialTypes.Steel;
+          var key = analysis.Profile.Id + "|" + material;
+          if (profileVotes.TryGetValue(key, out var vote))
+            profileVotes[key] = (vote.Profile, vote.Material, vote.Count + 1);
+          else
+            profileVotes[key] = (analysis.Profile, material, 1);
+        }
+        catch (Exception ex)
+        {
+          notes.Add($"{file.FileName}: {ex.Message}");
+        }
+      }
+
+      if (profileVotes.Count > 0)
+      {
+        var winner = profileVotes.Values.OrderByDescending(entry => entry.Count).First();
+        TryApplyDetectedProfile(
+          new PdfDrawingAnalysisResult
+          {
+            Profile = winner.Profile,
+            Material = winner.Material,
+            Kind = DrawingPartKind.Pipe
+          },
+          overwriteExisting: _cutProfile is null,
+          notes);
+      }
+
+      foreach (var (file, analysis) in analyses)
+      {
+        try
+        {
+          if (!analysis.IsPipe)
+          {
+            skippedNotPipe++;
+            continue;
+          }
+
+          if (_cutProfile is not null
+              && analysis.Profile is not null
+              && !string.Equals(_cutProfile.Id, analysis.Profile.Id, StringComparison.OrdinalIgnoreCase))
+          {
+            skippedWrongProfile++;
+            notes.Add($"{file.FileName}: {analysis.Profile.FullLabel} – anderes Maß als {_cutProfile.FullLabel}");
+            continue;
+          }
+
+          if (analysis.LengthMm is not > 0)
+          {
+            notes.Add($"{file.FileName}: Rohr erkannt"
+                      + (!string.IsNullOrWhiteSpace(analysis.PartName) ? $" ({analysis.PartName})" : string.Empty)
+                      + ", aber keine Rohrlänge in PDF/STEP – bitte manuell eintragen"
+                      + (analysis.Profile is not null ? $" (Profil: {analysis.Profile.FullLabel})" : string.Empty));
+            continue;
+          }
+
+          var quantity = 1;
+          var excelQty = ExcelOrderQuantityService.FindQuantityForDrawing(excelQuantities, file.FileName);
+          if (excelQty is > 0)
+          {
+            quantity = excelQty.Value;
+            quantityFromExcel++;
+          }
+
+          var part = new CutPartEntry
+          {
+            DrawingName = file.FileName,
+            PdfPath = file.FullPath,
+            LengthMm = analysis.LengthMm.Value,
+            MiterEnd1Deg = MiterNotation.NormalizeInputAngle(analysis.MiterEnd1Deg ?? 0),
+            MiterEnd2Deg = MiterNotation.NormalizeInputAngle(analysis.MiterEnd2Deg ?? 0),
+            Quantity = quantity
+          };
+
+          var existingSamePdf = _parts.FirstOrDefault(existing =>
+            string.Equals(existing.PdfPath ?? string.Empty, part.PdfPath ?? string.Empty, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(existing.DrawingName ?? string.Empty, part.DrawingName ?? string.Empty, StringComparison.OrdinalIgnoreCase));
+          if (existingSamePdf is not null)
+          {
+            var index = _parts.IndexOf(existingSamePdf);
+            if (index >= 0)
+              _parts[index] = part;
+            added++;
+            notes.Add($"{file.FileName}: Teilliste aktualisiert (Länge {part.LengthMm:0.##} mm, {part.Quantity} Stück)");
+            continue;
+          }
+
+          _parts.Add(part);
+          added++;
+        }
+        catch (Exception ex)
+        {
+          notes.Add($"{file.FileName}: {ex.Message}");
+        }
+      }
+
+      if (_cutProfile is null)
+      {
+        var excelVotes = new Dictionary<string, (PipeProfileDefinition Profile, int Count)>(StringComparer.OrdinalIgnoreCase);
+        foreach (var row in excelQuantities.Where(entry => entry.IsPipe && entry.Profile is not null))
+        {
+          var key = row.Profile!.Id;
+          if (excelVotes.TryGetValue(key, out var vote))
+            excelVotes[key] = (vote.Profile, vote.Count + 1);
+          else
+            excelVotes[key] = (row.Profile, 1);
+        }
+
+        if (excelVotes.Count > 0)
+        {
+          var winner = excelVotes.Values.OrderByDescending(entry => entry.Count).First();
+          TryApplyDetectedProfile(
+            new PdfDrawingAnalysisResult
+            {
+              Profile = winner.Profile,
+              Material = PipeMaterialTypes.Steel,
+              Kind = DrawingPartKind.Pipe
+            },
+            overwriteExisting: true,
+            notes);
+        }
+      }
+
+      var generated = AddWorkshopTubesFromExcel(excelQuantities, files, notes, ref quantityFromExcel);
+      added += generated;
+
+      PdfComboBox.ItemsSource = files;
+      if (files.Count > 0)
+        PdfComboBox.SelectedIndex = 0;
+
+      PdfFolderTextBlock.Text = $"{files.Count} Zeichnung(en) · {added} Rohr(e) in Teilliste"
+                                + (skippedNotPipe > 0 ? $" · {skippedNotPipe} Blech/kein Rohr" : string.Empty)
+                                + (skippedWrongProfile > 0 ? $" · {skippedWrongProfile} anderes Profilmaß" : string.Empty)
+                                + (generated > 0 ? $" · {generated} Werkstattzeichnung(en)" : string.Empty)
+                                + (quantityFromExcel > 0 ? $" · {quantityFromExcel}× Menge aus Excel" : string.Empty)
+                                + (localAiHits > 0 ? $" · {localAiHits}× Vision-KI" : string.Empty);
+
+      var profileLine = _cutProfile is not null
+        ? $"Aktives Profil: {_cutProfile.FullLabel} · {_cutMaterial}"
+        : "Kein Profil erkannt – bitte manuell wählen.";
+
+      var excelLine = excelName is null
+        ? "Keine Excel-Datei gefunden (ZIP/Dateien enthielten keine .xlsx) – Stückzahl = 1. Excel ggf. zusätzlich mit ablegen."
+        : quantityFromExcel > 0
+          ? $"Bestellmenge aus „{excelName}“ für {quantityFromExcel} Position(en) übernommen."
+            + (generated > 0 ? $" {generated} Rohr(e) ohne Original-PDF als Werkstattzeichnung erzeugt." : string.Empty)
+          : $"Excel „{excelName}“ geladen, aber keine Zeichnung konnte der Bestellmenge zugeordnet werden.";
+
+      var skipLine = skippedNotPipe > 0
+        ? $"{skippedNotPipe} Zeichnung(en) sind kein Rohr (Blech, Abdeckung, Halter o. Ä.) und wurden nicht übernommen."
+        : string.Empty;
+
+      AnalysisTextBlock.Text = (added > 0
+        ? $"{added} Rohr(e) in die Teilliste übernommen."
+        : "Keine Rohrzeichnungen erkannt – Bleche werden nicht als Rohre übernommen.")
+        + Environment.NewLine + profileLine
+        + Environment.NewLine + excelLine
+        + (skipLine.Length > 0 ? Environment.NewLine + skipLine : string.Empty)
+        + (notes.Count > 0 ? Environment.NewLine + string.Join(Environment.NewLine, notes.Take(10)) : string.Empty);
+    }
+    catch (Exception ex)
+    {
+      MessageBox.Show(this, ex.Message, "Zeichnungen importieren", MessageBoxButton.OK, MessageBoxImage.Warning);
+    }
+    finally
+    {
+      Mouse.OverrideCursor = null;
+    }
+  }
+
+  private int AddWorkshopTubesFromExcel(
+    IReadOnlyList<ExcelOrderQuantityRow> excelRows,
+    List<PdfFileOption> files,
+    List<string> notes,
+    ref int quantityFromExcel)
+  {
+    var pipeRows = excelRows.Where(row => row.IsPipe && row.Quantity > 0).ToList();
+    if (pipeRows.Count == 0 || string.IsNullOrWhiteSpace(_pdfImportRoot))
+      return 0;
+
+    var existingPdfs = files.ToList();
+    var bom = AssemblyTubeBomService.Extract(existingPdfs.Select(file => file.FullPath)).ToList();
+    var bomUsed = new bool[bom.Count];
+    for (var i = 0; i < bom.Count; i++)
+    {
+      if (!string.IsNullOrWhiteSpace(bom[i].DrawingNumber)
+          && existingPdfs.Any(pdf => ExcelOrderQuantityService.MatchesDrawing(bom[i].DrawingNumber!, pdf.FileName)))
+        bomUsed[i] = true;
+    }
+
+    var generated = 0;
+    var sequence = 1;
+    var orderReference = OrderReferenceTextBox.Text.Trim();
+
+    foreach (var row in pipeRows)
+    {
+      if (!string.IsNullOrWhiteSpace(row.DrawingNumber)
+          && (existingPdfs.Any(pdf => ExcelOrderQuantityService.MatchesDrawing(row.DrawingNumber, pdf.FileName))
+              || _parts.Any(part => ExcelOrderQuantityService.MatchesDrawing(row.DrawingNumber, part.DrawingName ?? string.Empty))))
+        continue;
+
+      var matchIndex = FindMatchingBomIndex(row, bom, bomUsed, existingPdfs);
+      AssemblyTubePosition? match = matchIndex >= 0 ? bom[matchIndex] : null;
+      if (matchIndex >= 0)
+        bomUsed[matchIndex] = true;
+
+      var profile = row.Profile ?? match?.Profile;
+      if (_cutProfile is not null
+          && profile is not null
+          && !string.Equals(_cutProfile.Id, profile.Id, StringComparison.OrdinalIgnoreCase))
+      {
+        notes.Add(
+          ExcelRowLabel(row) + $": {profile.FullLabel} – anderes Maß als {_cutProfile.FullLabel}");
+        continue;
+      }
+
+      var length = row.LengthMm ?? match?.LengthMm;
+      var drawingNumber = !string.IsNullOrWhiteSpace(row.DrawingNumber)
+        ? row.DrawingNumber
+        : match?.Position is int pos
+          ? "RZO-POS-" + pos
+          : row.LineNumber is int line
+            ? "RZO-POS-" + line
+            : "RZO-" + sequence.ToString("000");
+      sequence++;
+
+      var description = !string.IsNullOrWhiteSpace(row.Description)
+        ? row.Description
+        : match?.Description ?? "TUBE";
+
+      var positionLabel = match?.Position is int assemblyPos
+        ? assemblyPos.ToString("0")
+        : row.LineNumber is int excelLine
+          ? "Excel " + excelLine
+          : null;
+
+      var sourceNote = match is null
+        ? "Länge und Position ggf. in der Baugruppenzeichnung prüfen."
+        : "Baugruppe " + match.SourceFileName
+          + (match.Position is int p ? ", Position " + p : string.Empty)
+          + (match.LengthMm is > 0 ? $", Länge {match.LengthMm:0.##} mm" : string.Empty)
+          + ".";
+
+      try
+      {
+        var pdfPath = WorkshopTubeDrawingService.Create(
+          Path.Combine(_pdfImportRoot, "Werkstattzeichnungen"),
+          drawingNumber,
+          description,
+          profile,
+          length ?? 0,
+          row.Quantity,
+          string.IsNullOrWhiteSpace(orderReference) ? null : orderReference,
+          sourceNote,
+          positionLabel,
+          match?.SourceFileName);
+
+        var fileName = Path.GetFileName(pdfPath);
+        var option = new PdfFileOption { FileName = fileName, FullPath = pdfPath };
+        files.Add(option);
+        existingPdfs.Add(option);
+
+        var part = new CutPartEntry
+        {
+          DrawingName = fileName,
+          PdfPath = pdfPath,
+          LengthMm = length ?? 0,
+          Quantity = row.Quantity
+        };
+
+        var existing = _parts.FirstOrDefault(entry =>
+          string.Equals(entry.PdfPath ?? string.Empty, part.PdfPath, StringComparison.OrdinalIgnoreCase)
+          || string.Equals(entry.DrawingName ?? string.Empty, part.DrawingName, StringComparison.OrdinalIgnoreCase));
+        if (existing is not null)
+        {
+          var index = _parts.IndexOf(existing);
+          if (index >= 0)
+            _parts[index] = part;
+        }
+        else
+        {
+          _parts.Add(part);
+        }
+
+        generated++;
+        quantityFromExcel++;
+
+        if (length is not > 0)
+          notes.Add($"{fileName}: Werkstattzeichnung erzeugt – Rohrlänge in der Baugruppe prüfen und ggf. eintragen.");
+        else
+          notes.Add($"{fileName}: aus Excel ohne Original-PDF erzeugt ({length:0.##} mm, {row.Quantity} Stück).");
+
+        if (profile is not null)
+        {
+          TryApplyDetectedProfile(
+            new PdfDrawingAnalysisResult
+            {
+              Profile = profile,
+              Material = _cutMaterial ?? PipeMaterialTypes.Steel,
+              Kind = DrawingPartKind.Pipe
+            },
+            overwriteExisting: _cutProfile is null,
+            notes);
+        }
+      }
+      catch (Exception ex)
+      {
+        notes.Add(ExcelRowLabel(row) + ": Werkstattzeichnung fehlgeschlagen – " + ex.Message);
+      }
+    }
+
+    return generated;
+  }
+
+  private static int FindMatchingBomIndex(
+    ExcelOrderQuantityRow row,
+    IReadOnlyList<AssemblyTubePosition> bom,
+    IReadOnlyList<bool> bomUsed,
+    IReadOnlyList<PdfFileOption> existingPdfs)
+  {
+    if (!string.IsNullOrWhiteSpace(row.DrawingNumber))
+    {
+      for (var i = 0; i < bom.Count; i++)
+      {
+        if (bomUsed[i] || string.IsNullOrWhiteSpace(bom[i].DrawingNumber))
+          continue;
+
+        if (ExcelOrderQuantityService.MatchesDrawing(row.DrawingNumber, bom[i].DrawingNumber!))
+          return i;
+      }
+
+      return -1;
+    }
+
+    var bestIndex = -1;
+    var bestScore = -1;
+    for (var i = 0; i < bom.Count; i++)
+    {
+      if (bomUsed[i])
+        continue;
+
+      var candidate = bom[i];
+      if (!string.IsNullOrWhiteSpace(candidate.DrawingNumber)
+          && existingPdfs.Any(pdf => ExcelOrderQuantityService.MatchesDrawing(candidate.DrawingNumber!, pdf.FileName)))
+        continue;
+
+      var score = 0;
+      if (row.Profile is not null && candidate.Profile is not null)
+      {
+        if (!string.Equals(row.Profile.Id, candidate.Profile.Id, StringComparison.OrdinalIgnoreCase))
+          continue;
+
+        score += 50;
+      }
+      else
+      {
+        score += 10;
+      }
+
+      if (candidate.Quantity == row.Quantity)
+        score += 20;
+
+      if (string.IsNullOrWhiteSpace(candidate.DrawingNumber))
+        score += 15;
+
+      if (score > bestScore)
+      {
+        bestScore = score;
+        bestIndex = i;
+      }
+    }
+
+    return bestScore >= 10 ? bestIndex : -1;
+  }
+
+  private static string ExcelRowLabel(ExcelOrderQuantityRow row)
+  {
+    if (row.LineNumber is int line)
+      return "Excel Zeile " + line;
+    if (!string.IsNullOrWhiteSpace(row.Description))
+      return row.Description;
+    return "Excel-Rohr";
+  }
+
+  private List<string> CollectPdfPathsFromImport(IEnumerable<string> sourcePaths)
+  {
+    var importRoot = Path.Combine(AppInfo.UserDataDirectory, "Zeichnungen", DateTime.Now.ToString("yyyyMMdd_HHmmss"));
+    Directory.CreateDirectory(importRoot);
+    _pdfImportRoot = importRoot;
+
+    var pdfPaths = new List<string>();
+    foreach (var sourcePath in sourcePaths.Where(File.Exists))
+    {
+      var extension = Path.GetExtension(sourcePath);
+      if (extension.Equals(".pdf", StringComparison.OrdinalIgnoreCase))
+      {
+        var destination = Path.Combine(importRoot, Path.GetFileName(sourcePath));
+        destination = MakeUniquePath(destination);
+        File.Copy(sourcePath, destination, overwrite: false);
+        pdfPaths.Add(destination);
+        continue;
+      }
+
+      if (IsExcelImportExtension(extension))
+      {
+        var destination = Path.Combine(importRoot, Path.GetFileName(sourcePath));
+        destination = MakeUniquePath(destination);
+        File.Copy(sourcePath, destination, overwrite: false);
+        continue;
+      }
+
+      if (!extension.Equals(".zip", StringComparison.OrdinalIgnoreCase))
+        continue;
+
+      var zipExtractRoot = Path.Combine(importRoot, Path.GetFileNameWithoutExtension(sourcePath));
+      Directory.CreateDirectory(zipExtractRoot);
+      ZipFile.ExtractToDirectory(sourcePath, zipExtractRoot, overwriteFiles: true);
+      pdfPaths.AddRange(Directory.EnumerateFiles(zipExtractRoot, "*.pdf", SearchOption.AllDirectories));
+    }
+
+    return pdfPaths
+      .Distinct(StringComparer.OrdinalIgnoreCase)
       .ToList();
+  }
 
-    PdfComboBox.ItemsSource = files;
-    PdfFolderTextBlock.Text = $"{files.Count} PDF(s) in: {_pdfFolderPath}";
+  private static string MakeUniquePath(string path)
+  {
+    if (!File.Exists(path))
+      return path;
 
-    if (files.Count > 0)
-      PdfComboBox.SelectedIndex = 0;
-    else
-      AnalysisTextBlock.Text = "Keine PDF-Dateien im gewählten Ordner gefunden.";
+    var directory = Path.GetDirectoryName(path) ?? string.Empty;
+    var name = Path.GetFileNameWithoutExtension(path);
+    var extension = Path.GetExtension(path);
+    for (var index = 2; index < 1000; index++)
+    {
+      var candidate = Path.Combine(directory, $"{name}_{index}{extension}");
+      if (!File.Exists(candidate))
+        return candidate;
+    }
+
+    return Path.Combine(directory, $"{name}_{Guid.NewGuid():N}{extension}");
   }
 
   private void PdfComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -294,11 +911,15 @@ public partial class MainWindow : Window
       var result = PdfDrawingAnalysisService.Analyze(pdf.FullPath);
       AnalysisTextBlock.Text = result.Summary;
 
-      if (result.LengthMm is > 0)
-        PartLengthTextBox.Text = FormatInputNumber(result.LengthMm.Value);
+      if (result.IsPipe)
+      {
+        if (result.LengthMm is > 0)
+          PartLengthTextBox.Text = FormatInputNumber(result.LengthMm.Value);
 
-      MiterEnd1TextBox.Text = FormatInputNumber(result.MiterEnd1Deg ?? 0);
-      MiterEnd2TextBox.Text = FormatInputNumber(result.MiterEnd2Deg ?? 0);
+        MiterEnd1TextBox.Text = FormatInputNumber(result.MiterEnd1Deg ?? 0);
+        MiterEnd2TextBox.Text = FormatInputNumber(result.MiterEnd2Deg ?? 0);
+        TryApplyDetectedProfile(result, overwriteExisting: _cutProfile is null);
+      }
     }
     catch (Exception ex)
     {
@@ -419,14 +1040,14 @@ public partial class MainWindow : Window
     PartQuantityTextBox.Text = "1";
     MiterEnd1TextBox.Text = "0";
     MiterEnd2TextBox.Text = "0";
-    AnalysisTextBlock.Text = "PDF auswählen – Länge und Gehrung werden automatisch vorgeschlagen.";
+    AnalysisTextBlock.Text = "PDF oder ZIP ablegen – Länge und Gehrung werden erkannt und in die Teilliste übernommen.";
   }
 
   private void ClearResult()
   {
     _lastResult = null;
     _lastParts = [];
-    SummaryTextBlock.Text = "Noch keine Berechnung.";
+    SummaryTextBlock.Text = "Noch keine Berechnung. Nach Schritt 3 erscheint hier der Schnittplan.";
     PlanItemsControl.ItemsSource = null;
     SetExportPdfEnabled(false);
   }
@@ -514,7 +1135,7 @@ public partial class MainWindow : Window
     {
       MessageBox.Show(
         this,
-        "Bitte oben eine Auftragsnummer eingeben.",
+        "Bitte in Schritt 1 eine Auftragsnummer eingeben.",
         "Auftragsnummer fehlt",
         MessageBoxButton.OK,
         MessageBoxImage.Information);
@@ -538,9 +1159,8 @@ public partial class MainWindow : Window
 
   private string CreateAutoPdfPath()
   {
-    var folder = Path.Combine(
-      Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-      "Rohre-Zuschnitt-Optimierung");
+    var folder = AppInfo.UserDataDirectory;
+    Directory.CreateDirectory(folder);
     var suffix = string.IsNullOrWhiteSpace(_lastOrderReference)
       ? DateTime.Now.ToString("yyyyMMdd_HHmmss")
       : SanitizeFileNamePart(_lastOrderReference);
@@ -549,15 +1169,9 @@ public partial class MainWindow : Window
 
   private static string CreateAutoOrderPdfPath(string orderReference)
   {
-    var folder = Path.Combine(
-      Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-      "Rohre-Zuschnitt-Optimierung");
+    var folder = AppInfo.UserDataDirectory;
+    Directory.CreateDirectory(folder);
     return Path.Combine(folder, $"Bestellliste_{SanitizeFileNamePart(orderReference)}.pdf");
-  }
-
-  private void AddPartRow_Click(object sender, RoutedEventArgs e)
-  {
-    _parts.Add(new CutPartEntry());
   }
 
   private CutPartEntry BuildPartFromInputs(PdfFileOption? pdf)
@@ -588,8 +1202,13 @@ public partial class MainWindow : Window
       if (string.IsNullOrWhiteSpace(orderReference))
         return;
 
-      var stockLengthMm = ParsePositiveDouble(StockLengthTextBox.Text, "Originalstange");
-      var kerfMm = ParseNonNegativeDouble(KerfTextBox.Text, "Schnittbreite");
+      var appSettings = AppSettingsStore.Load();
+      var stockLengthMm = appSettings.StockLengthMm;
+      if (stockLengthMm <= 0)
+        throw new InvalidOperationException("Originalstange in den Einstellungen ist ungültig.");
+      var kerfMm = appSettings.KerfMm;
+      if (kerfMm < 0)
+        throw new InvalidOperationException("Schnittbreite in den Einstellungen ist ungültig.");
       var profile = GetSelectedCutProfile();
 
       if (profile is null || string.IsNullOrWhiteSpace(_cutMaterial))
@@ -618,6 +1237,38 @@ public partial class MainWindow : Window
           "Eingabe fehlt",
           MessageBoxButton.OK,
           MessageBoxImage.Information);
+        return;
+      }
+
+      RefreshPartLengthsFromPdfs(parts);
+
+      var preview = new OptimizePreviewWindow(
+        orderReference,
+        profile.FullLabel,
+        _cutMaterial!,
+        stockLengthMm,
+        parts)
+      {
+        Owner = this
+      };
+
+      if (preview.ShowDialog() != true || !preview.Confirmed)
+        return;
+
+      var oversized = parts.Where(part => part.LengthMm > stockLengthMm).ToList();
+      if (oversized.Count > 0)
+      {
+        MessageBox.Show(
+          this,
+          "Diese Teile sind länger als die Originalstange ("
+          + stockLengthMm.ToString("0.###", CultureInfo.InvariantCulture) + " mm):"
+          + Environment.NewLine + Environment.NewLine
+          + string.Join(Environment.NewLine, oversized.Select(part =>
+            "• " + (string.IsNullOrWhiteSpace(part.DrawingName) ? "Manuelle Eingabe" : part.DrawingName)
+            + ": " + part.LengthMm.ToString("0.###", CultureInfo.InvariantCulture) + " mm × " + part.Quantity)),
+          "Teil zu lang",
+          MessageBoxButton.OK,
+          MessageBoxImage.Warning);
         return;
       }
 
@@ -703,10 +1354,38 @@ public partial class MainWindow : Window
 
       ShowResult(result);
       OpenPrintPdf();
+      SummaryTextBlock.Text =
+        SummaryTextBlock.Text
+        + Environment.NewLine
+        + "Zuschnittplan berechnet – PDF wurde geöffnet. Bei Bedarf rechts „Zuschnittplan speichern unter …“.";
     }
     catch (Exception ex)
     {
       MessageBox.Show(this, ex.Message, "Berechnung fehlgeschlagen", MessageBoxButton.OK, MessageBoxImage.Warning);
+    }
+  }
+
+  private static void RefreshPartLengthsFromPdfs(List<CutPartEntry> parts)
+  {
+    foreach (var part in parts)
+    {
+      if (string.IsNullOrWhiteSpace(part.PdfPath) || !File.Exists(part.PdfPath))
+        continue;
+
+      try
+      {
+        var analysis = PdfDrawingAnalysisService.Analyze(part.PdfPath);
+        if (analysis.LengthMm is > 0)
+          part.LengthMm = analysis.LengthMm.Value;
+        if (analysis.MiterEnd1Deg is not null)
+          part.MiterEnd1Deg = MiterNotation.NormalizeInputAngle(analysis.MiterEnd1Deg.Value);
+        if (analysis.MiterEnd2Deg is not null)
+          part.MiterEnd2Deg = MiterNotation.NormalizeInputAngle(analysis.MiterEnd2Deg.Value);
+      }
+      catch
+      {
+        // bestehende Werte behalten
+      }
     }
   }
 

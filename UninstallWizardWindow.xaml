@@ -1,0 +1,154 @@
+<Window x:Class="RohreZuschnittOptimierung.UninstallWizardWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Rohre Zuschnitt Optimierung Deinstallation"
+        Icon="pack://application:,,,/Assets/AppIcon.ico"
+        Height="620" Width="720"
+        MinHeight="560" MinWidth="640"
+        WindowStartupLocation="CenterScreen"
+        Background="{DynamicResource AppBackgroundBrush}"
+        Foreground="{DynamicResource TextPrimaryBrush}"
+        ResizeMode="NoResize"
+        ShowInTaskbar="True">
+
+  <Window.Resources>
+    <Style x:Key="WizardButton" TargetType="Button">
+      <Setter Property="MinWidth" Value="110"/>
+      <Setter Property="Height" Value="34"/>
+      <Setter Property="Margin" Value="8,0,0,0"/>
+      <Setter Property="Padding" Value="14,6"/>
+      <Setter Property="FontSize" Value="13"/>
+      <Setter Property="Cursor" Value="Hand"/>
+      <Setter Property="BorderThickness" Value="1"/>
+      <Setter Property="BorderBrush" Value="{DynamicResource PanelBorderBrush}"/>
+      <Setter Property="Background" Value="{DynamicResource CardBackgroundBrush}"/>
+      <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
+    </Style>
+    <Style x:Key="WizardPrimaryButton" TargetType="Button" BasedOn="{StaticResource WizardButton}">
+      <Setter Property="Background" Value="{DynamicResource AccentBrush}"/>
+      <Setter Property="Foreground" Value="{DynamicResource AccentButtonForegroundBrush}"/>
+      <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
+      <Setter Property="FontWeight" Value="SemiBold"/>
+    </Style>
+    <Style x:Key="WizardDangerButton" TargetType="Button" BasedOn="{StaticResource WizardButton}">
+      <Setter Property="Background" Value="{DynamicResource DangerButtonBackgroundBrush}"/>
+      <Setter Property="Foreground" Value="{DynamicResource DangerButtonForegroundBrush}"/>
+      <Setter Property="BorderBrush" Value="{DynamicResource DangerButtonBorderBrush}"/>
+      <Setter Property="FontWeight" Value="SemiBold"/>
+    </Style>
+    <Style x:Key="WizardTextBox" TargetType="TextBox">
+      <Setter Property="Background" Value="{DynamicResource InputBackgroundBrush}"/>
+      <Setter Property="Foreground" Value="{DynamicResource InputForegroundBrush}"/>
+      <Setter Property="BorderBrush" Value="{DynamicResource InputBorderBrush}"/>
+      <Setter Property="BorderThickness" Value="1"/>
+      <Setter Property="Padding" Value="10,8"/>
+      <Setter Property="MinHeight" Value="38"/>
+      <Setter Property="VerticalContentAlignment" Value="Center"/>
+      <Setter Property="FontSize" Value="13"/>
+      <Setter Property="CaretBrush" Value="{DynamicResource TextPrimaryBrush}"/>
+    </Style>
+    <Style x:Key="WizardCheckBox" TargetType="CheckBox">
+      <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
+      <Setter Property="FontSize" Value="13"/>
+      <Setter Property="Margin" Value="0,0,0,8"/>
+    </Style>
+    <Style x:Key="WizardSecondaryText" TargetType="TextBlock">
+      <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}"/>
+    </Style>
+  </Window.Resources>
+
+  <Grid>
+    <Grid.RowDefinitions>
+      <RowDefinition Height="88"/>
+      <RowDefinition Height="*"/>
+      <RowDefinition Height="Auto"/>
+      <RowDefinition Height="64"/>
+    </Grid.RowDefinitions>
+
+    <Border Grid.Row="0" Background="{DynamicResource DataGridHeaderBackgroundBrush}" BorderBrush="{DynamicResource PanelBorderBrush}" BorderThickness="0,0,0,1" Padding="24,16">
+      <StackPanel VerticalAlignment="Center">
+        <TextBlock Text="Rohre Zuschnitt Optimierung Deinstallation" FontSize="20" FontWeight="Bold" Foreground="{DynamicResource DataGridHeaderForegroundBrush}"/>
+        <TextBlock x:Name="StepTitleTextBlock" FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,4,0,0"/>
+      </StackPanel>
+    </Border>
+
+    <Border Grid.Row="1" Margin="24,16,24,8" Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" CornerRadius="8" Padding="20">
+      <Grid>
+        <StackPanel x:Name="WelcomePanel" Visibility="Visible">
+          <TextBlock Text="Willkommen beim Deinstallationsassistenten" FontSize="18" FontWeight="SemiBold" Margin="0,0,0,12"/>
+          <TextBlock TextWrapping="Wrap" FontSize="14" LineHeight="22"
+                     Text="Dieser Assistent entfernt Rohre Zuschnitt Optimierung sauber von Ihrem Computer. Bitte lesen Sie auf der naechsten Seite alle Hinweise und Urheberrechtsinformationen."/>
+          <TextBlock x:Name="WelcomeVersionTextBlock" Margin="0,16,0,8" FontSize="13" Style="{StaticResource WizardSecondaryText}"/>
+          <TextBlock x:Name="WelcomeCopyrightTextBlock" TextWrapping="Wrap" FontSize="13" Style="{StaticResource WizardSecondaryText}"/>
+          <TextBlock x:Name="NotInstalledTextBlock" Margin="0,16,0,0" Foreground="{DynamicResource DangerButtonBackgroundBrush}" FontWeight="SemiBold" Visibility="Collapsed"
+                     Text="Es wurde keine Festinstallation gefunden. Deinstallation ist nicht moeglich."/>
+        </StackPanel>
+
+        <Grid x:Name="InformationPanel" Visibility="Collapsed">
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+          </Grid.RowDefinitions>
+          <TextBlock Grid.Row="0" Text="Informationen zur Deinstallation" FontSize="16" FontWeight="SemiBold" Margin="0,0,0,10"/>
+          <Border Grid.Row="1" BorderBrush="{DynamicResource PanelBorderBrush}" BorderThickness="1" CornerRadius="4" Background="{DynamicResource PanelBackgroundBrush}">
+            <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="12">
+              <TextBlock x:Name="InformationTextBlock" TextWrapping="Wrap" FontFamily="Consolas" FontSize="11.5" LineHeight="18" Foreground="{DynamicResource TextPrimaryBrush}"/>
+            </ScrollViewer>
+          </Border>
+          <CheckBox x:Name="AcceptInformationCheckBox" Grid.Row="2" Margin="0,12,0,0"
+                    Style="{StaticResource WizardCheckBox}"
+                    Content="Ich habe die Informationen und Hinweise zur Deinstallation gelesen."/>
+        </Grid>
+
+        <StackPanel x:Name="OptionsPanel" Visibility="Collapsed">
+          <TextBlock Text="Deinstallationsoptionen" FontSize="16" FontWeight="SemiBold" Margin="0,0,0,12"/>
+          <TextBlock Text="Programmordner (portabel):" FontWeight="SemiBold" Margin="0,0,0,4"/>
+          <TextBox x:Name="InstallPathTextBox" Style="{StaticResource WizardTextBox}" IsReadOnly="True" Margin="0,0,0,12"/>
+          <TextBlock Text="Benutzerdaten:" FontWeight="SemiBold" Margin="0,0,0,4"/>
+          <TextBox x:Name="UserDataPathTextBox" Style="{StaticResource WizardTextBox}" IsReadOnly="True" Margin="0,0,0,12"/>
+          <TextBlock Text="Desktop-Verknuepfung:" FontWeight="SemiBold" Margin="0,0,0,4"/>
+          <TextBox x:Name="ShortcutPathTextBox" Style="{StaticResource WizardTextBox}" IsReadOnly="True" Margin="0,0,0,16"/>
+          <CheckBox x:Name="RemoveUserDataCheckBox" Style="{StaticResource WizardCheckBox}"
+                    Content="Ordner Daten ebenfalls loeschen (Lager, Auftraege, PDFs im Programmordner)"/>
+          <CheckBox x:Name="ConfirmUninstallCheckBox" Style="{StaticResource WizardCheckBox}"
+                    Content="Ich moechte die Deinstallation jetzt durchfuehren."/>
+          <TextBlock Margin="0,8,0,0" TextWrapping="Wrap" FontSize="12" Style="{StaticResource WizardSecondaryText}"
+                     Text="Fuer die Deinstallation ist eine einmalige Windows-Administratorfreigabe (UAC) erforderlich."/>
+        </StackPanel>
+
+        <StackPanel x:Name="ProgressPanel" Visibility="Collapsed" VerticalAlignment="Center">
+          <TextBlock Text="Deinstallation laeuft..." FontSize="16" FontWeight="SemiBold" HorizontalAlignment="Center" Margin="0,0,0,16"/>
+          <ProgressBar x:Name="UninstallProgressBar" Height="8" IsIndeterminate="True" Margin="40,0"
+                       Foreground="{DynamicResource AccentBrush}" Background="{DynamicResource ScrollBarTrackBrush}"/>
+          <TextBlock x:Name="ProgressStatusTextBlock" Margin="0,16,0,0" HorizontalAlignment="Center" Style="{StaticResource WizardSecondaryText}"/>
+        </StackPanel>
+
+        <StackPanel x:Name="FinishPanel" Visibility="Collapsed" VerticalAlignment="Center">
+          <TextBlock Text="Deinstallation abgeschlossen" FontSize="18" FontWeight="SemiBold" HorizontalAlignment="Center" Margin="0,0,0,12"/>
+          <TextBlock x:Name="FinishMessageTextBlock" TextWrapping="Wrap" FontSize="14" LineHeight="22" HorizontalAlignment="Center" TextAlignment="Center"/>
+        </StackPanel>
+      </Grid>
+    </Border>
+
+    <TextBlock Grid.Row="2" x:Name="FooterCopyrightTextBlock" Margin="24,0"
+               FontSize="11" Style="{StaticResource WizardSecondaryText}" HorizontalAlignment="Left"/>
+
+    <Border Grid.Row="3" Background="{DynamicResource DataGridHeaderBackgroundBrush}" BorderBrush="{DynamicResource PanelBorderBrush}" BorderThickness="0,1,0,0" Padding="16,12">
+      <DockPanel LastChildFill="False">
+        <Button x:Name="CancelButton" Content="Abbrechen" Click="CancelButton_Click"
+                Style="{StaticResource WizardButton}" DockPanel.Dock="Left"/>
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+          <Button x:Name="BackButton" Content="Zurueck" Click="BackButton_Click"
+                  Style="{StaticResource WizardButton}" IsEnabled="False"/>
+          <Button x:Name="NextButton" Content="Weiter" Click="NextButton_Click"
+                  Style="{StaticResource WizardPrimaryButton}"/>
+          <Button x:Name="UninstallButton" Content="Deinstallieren" Click="UninstallButton_Click"
+                  Style="{StaticResource WizardDangerButton}" Visibility="Collapsed"/>
+          <Button x:Name="CloseButton" Content="Fertigstellen" Click="CloseButton_Click"
+                  Style="{StaticResource WizardPrimaryButton}" Visibility="Collapsed"/>
+        </StackPanel>
+      </DockPanel>
+    </Border>
+  </Grid>
+</Window>

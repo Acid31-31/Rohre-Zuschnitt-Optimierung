@@ -38,6 +38,87 @@ public static class PipeStockCatalog
                && Math.Abs(size.Value.Height - heightMm) < 0.01;
       });
 
+  public static PipeProfileDefinition? TryMatch(
+    PipeProfileKind kind,
+    double primaryMm,
+    double? secondaryMm,
+    double thicknessMm,
+    double toleranceMm = 0.15)
+  {
+    foreach (var profile in GetByKind(kind))
+    {
+      if (!TryParseCatalogSize(profile, out var a, out var b, out var thickness))
+        continue;
+
+      if (Math.Abs(thickness - thicknessMm) > toleranceMm)
+        continue;
+
+      if (kind == PipeProfileKind.Round)
+      {
+        if (Math.Abs(a - primaryMm) <= toleranceMm)
+          return profile;
+        continue;
+      }
+
+      var second = secondaryMm ?? primaryMm;
+      var direct = Math.Abs(a - primaryMm) <= toleranceMm && Math.Abs(b - second) <= toleranceMm;
+      var swapped = Math.Abs(a - second) <= toleranceMm && Math.Abs(b - primaryMm) <= toleranceMm;
+      if (direct || swapped)
+        return profile;
+    }
+
+    return null;
+  }
+
+  public static bool TryParseCatalogSize(
+    PipeProfileDefinition profile,
+    out double primaryMm,
+    out double secondaryMm,
+    out double thicknessMm)
+  {
+    primaryMm = 0;
+    secondaryMm = 0;
+    thicknessMm = 0;
+
+    var key = profile.Id;
+    var dash = key.IndexOf('-');
+    if (dash >= 0 && dash < key.Length - 1)
+      key = key[(dash + 1)..];
+
+    var parts = key.Split('x', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+    if (parts.Length < 2)
+      return false;
+
+    if (!TryParseInvariant(parts[0], out primaryMm))
+      return false;
+
+    if (profile.Kind == PipeProfileKind.Round)
+    {
+      if (!TryParseInvariant(parts[1], out thicknessMm))
+        return false;
+      secondaryMm = primaryMm;
+      return true;
+    }
+
+    if (parts.Length < 3)
+      return false;
+
+    if (!TryParseInvariant(parts[1], out secondaryMm))
+      return false;
+
+    if (!TryParseInvariant(parts[2], out thicknessMm))
+      return false;
+
+    return true;
+  }
+
+  private static bool TryParseInvariant(string raw, out double value) =>
+    double.TryParse(
+      raw.Replace(',', '.'),
+      System.Globalization.NumberStyles.Float,
+      System.Globalization.CultureInfo.InvariantCulture,
+      out value);
+
   private static (double Width, double Height)? ParseRectSize(PipeProfileDefinition profile)
   {
     var key = profile.Id;
