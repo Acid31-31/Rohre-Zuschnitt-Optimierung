@@ -202,7 +202,7 @@ if (Test-Path 'Z:\') {
     Write-Host "Z-ZIP:    $zZip"
 }
 else {
-    Write-Warning "Laufwerk Z: nicht gefunden – Kopie uebersprungen."
+    Write-Warning "Laufwerk Z: nicht gefunden - Kopie uebersprungen."
 }
 
 Write-Host ""

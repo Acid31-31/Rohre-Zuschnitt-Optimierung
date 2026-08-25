@@ -12,7 +12,7 @@ Desktop-WPF-Anwendung zur Optimierung von Rohrzuschnitten (Stangenlängen, Teile
 - Eigenes Git-Repository (getrennt von DOK-V01)
 - Automatische Updates über GitHub Releases
 
-## Entwicklung
+## Entwicklung (einziger Quellordner)
 
 ```powershell
 cd "Z:\Programierung\Rohre-Zuschnitt-Optimierung"
@@ -20,31 +20,31 @@ dotnet build
 dotnet run
 ```
 
-Ausgabe: `bin\Debug\net8.0-windows\RohreZuschnittOptimierung.exe`
+Alle Entwicklung, USB-Builds und Releases erfolgen nur aus diesem Ordner.
 
-## Release & Updates
+## Release & Updates (für installierte ältere Revisionen)
 
 ```powershell
 .\publish-github-release.ps1
 ```
 
-Erstellt `RohreZuschnittOptimierung-Release.zip` mit SHA256 in den Release-Notizen. Die App prüft beim Start automatisch auf Updates.
+Erstellt `RohreZuschnittOptimierung-Release-Rxx.zip` und lädt es als GitHub-Release hoch. Bereits installierte ältere Versionen prüfen beim Start automatisch auf Updates.
 
-## USB-Version
+## USB-Version (wie bisher)
 
 ```powershell
 .\create-usb-version.ps1
 ```
 
-Erzeugt den portablen Ordner unter `USB-Version\Rohre-Zuschnitt-Rxx`.
+Erzeugt:
+- `USB-Version\Rohre-Zuschnitt-Rxx\` (portabel)
+- `USB-Version\Rohre-Zuschnitt-Rxx.zip` (für USB-Stick)
+- Kopie nach `Z:\Rohre-Zuschnitt-Rxx\` und `Z:\Rohre-Zuschnitt-Rxx.zip`
 
-## Absicherung (Z: + GitHub)
-
-Standardziel ist Laufwerk **Z:** (nicht mehr E:).
+## Absicherung Quellcode auf Z:
 
 ```powershell
-.\Sicherung-USB.ps1
 .\Sicherung-USB.ps1 -DestinationRoot "Z:\"
 ```
 
-Legt unter `Z:\Rohre-Zuschnitt-Optimierung\` das lauffähige Programm und ein Quellcode-ZIP ab. Den aktuellen Stand zusätzlich auf GitHub sichern (`git push` und `.\publish-github-release.ps1`).
+Legt unter `Z:\Rohre-Zuschnitt-Optimierung\` das Programm und ein Quellcode-ZIP ab (zusätzlich zum GitHub-Stand).

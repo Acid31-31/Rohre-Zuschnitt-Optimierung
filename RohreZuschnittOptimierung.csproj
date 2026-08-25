@@ -11,9 +11,9 @@
     <ApplicationIcon>Assets\AppIcon.ico</ApplicationIcon>
     <AssemblyTitle>Rohre Zuschnitt Optimierung</AssemblyTitle>
     <Product>Rohre Zuschnitt Optimierung</Product>
-    <Version>1.0.20</Version>
-    <AssemblyVersion>1.0.0.20</AssemblyVersion>
-    <FileVersion>1.0.0.20</FileVersion>
+    <Version>1.0.21</Version>
+    <AssemblyVersion>1.0.0.21</AssemblyVersion>
+    <FileVersion>1.0.0.21</FileVersion>
   </PropertyGroup>
 
   <ItemGroup>
@@ -31,6 +31,7 @@
 
   <ItemGroup>
     <Resource Include="Assets\AppIcon.ico" />
+    <Resource Include="Assets\AppLogo.png" />
     <None Include="LICENSE_DE.txt" CopyToOutputDirectory="PreserveNewest" />
     <None Include="CodeSigning.cer" CopyToOutputDirectory="PreserveNewest" Condition="Exists('CodeSigning.cer')" />
     <None Include="native\pdfium.dll" CopyToOutputDirectory="PreserveNewest" Link="pdfium.dll" Condition="Exists('native\pdfium.dll')" />

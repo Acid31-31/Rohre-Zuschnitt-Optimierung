@@ -17,7 +17,8 @@ public static class OrderListPdfExportService
     string material,
     WarehouseReservationResult reservation,
     IReadOnlyList<PipeOrderLine> orderLines,
-    CutOptimizationResult result)
+    CutOptimizationResult result,
+    int warehouseFreeCount = 0)
   {
     PdfFontBootstrap.EnsureInitialized();
 
@@ -47,6 +48,15 @@ public static class OrderListPdfExportService
     y = DrawLine(gfx, "Profil", fontHeading, MarginPt, y, contentWidth);
     y = DrawLine(gfx, profile.FullLabel, fontBody, MarginPt, y, contentWidth);
     y = DrawLine(gfx, $"Materialart: {material}", fontBody, MarginPt, y, contentWidth);
+    y = DrawLine(
+      gfx,
+      warehouseFreeCount > 0
+        ? $"Lager frei für dieses Profil: {warehouseFreeCount} Stange(n) — fehlende Stangen werden bestellt."
+        : "Lager frei für dieses Profil: 0 Stange(n). Deshalb Bestellliste — zuerst unter Lager die Stückzahl eintragen.",
+      fontBody,
+      MarginPt,
+      y,
+      contentWidth);
     y += 8;
 
     if (orderLines.Count > 0)

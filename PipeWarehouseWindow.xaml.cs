@@ -14,6 +14,7 @@ public partial class PipeWarehouseWindow : Window
   private enum StockFilterMode
   {
     All,
+    InStockOnly,
     NewMaterialOnly,
     RemnantsOnly
   }
@@ -32,8 +33,9 @@ public partial class PipeWarehouseWindow : Window
     WarehouseGrid.ItemsSource = _view;
 
     Loaded += (_, _) => WindowChromeService.ApplyTheme(this, ThemeService.IsDarkMode);
+    Closing += WarehouseWindow_Closing;
     LoadItems();
-    UpdateFilterButtons();
+    SetStockFilter(StockFilterMode.InStockOnly);
     UpdateStatus();
   }
 
@@ -136,6 +138,9 @@ public partial class PipeWarehouseWindow : Window
     if (obj is not PipeWarehouseStockItem item)
       return false;
 
+    if (_stockFilter == StockFilterMode.InStockOnly && item.Quantity <= 0)
+      return false;
+
     if (_stockFilter == StockFilterMode.NewMaterialOnly && !item.IsOriginalStock)
       return false;
 
@@ -220,6 +225,9 @@ public partial class PipeWarehouseWindow : Window
 
   private void FilterAll_Click(object sender, RoutedEventArgs e) => SetStockFilter(StockFilterMode.All);
 
+  private void FilterInStock_Click(object sender, RoutedEventArgs e) =>
+    SetStockFilter(StockFilterMode.InStockOnly);
+
   private void FilterNew_Click(object sender, RoutedEventArgs e) =>
     SetStockFilter(StockFilterMode.NewMaterialOnly);
 
@@ -238,11 +246,13 @@ public partial class PipeWarehouseWindow : Window
   private void UpdateFilterButtons()
   {
     ResetFilterButton(FilterAllButton);
+    ResetFilterButton(FilterInStockButton);
     ResetFilterButton(FilterNewButton);
     ResetFilterButton(FilterRemnantButton);
 
     var active = _stockFilter switch
     {
+      StockFilterMode.InStockOnly => FilterInStockButton,
       StockFilterMode.NewMaterialOnly => FilterNewButton,
       StockFilterMode.RemnantsOnly => FilterRemnantButton,
       _ => FilterAllButton
@@ -311,6 +321,25 @@ public partial class PipeWarehouseWindow : Window
 
   private void Close_Click(object sender, RoutedEventArgs e) => Close();
 
+  private void WarehouseWindow_Closing(object? sender, CancelEventArgs e)
+  {
+    try
+    {
+      PersistWarehouse();
+    }
+    catch (Exception ex)
+    {
+      var answer = MessageBox.Show(
+        this,
+        "Lager konnte nicht gespeichert werden:\n" + ex.Message + "\n\nTrotzdem schließen?",
+        "Lagerverwaltung",
+        MessageBoxButton.YesNo,
+        MessageBoxImage.Warning);
+      if (answer != MessageBoxResult.Yes)
+        e.Cancel = true;
+    }
+  }
+
   private void UpdateStatus()
   {
     var visible = _view.Cast<object>().Count();
@@ -327,6 +356,7 @@ public partial class PipeWarehouseWindow : Window
       Material = item.Material,
       LengthMm = item.LengthMm,
       Quantity = item.Quantity,
+      ReservedQuantity = item.ReservedQuantity,
       ProfileDisplayName = item.ProfileDisplayName,
       ProfileKindLabel = item.ProfileKindLabel,
       ProfileDimensions = item.ProfileDimensions

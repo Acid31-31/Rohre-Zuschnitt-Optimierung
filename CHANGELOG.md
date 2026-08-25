@@ -3,6 +3,13 @@
 Jede Revision listet die sichtbaren Änderungen für Nutzer.
 Beim Release liest `publish-github-release.ps1` den Abschnitt zur aktuellen Revision.
 
+## R21
+
+- Neues Design wiederhergestellt (Logo-Kopfleiste, Planung / Schnittplan)
+- Größeres App-Logo in der Kopfleiste
+- Ein Quellordner auf Z: — alte Design-Kopien entfernt
+- USB-Version und GitHub-Update für bereits installierte Revisionen
+
 ## R20
 
 - Komplette Absicherung auf Laufwerk Z: (Programmordner, ZIP und Quellcode)

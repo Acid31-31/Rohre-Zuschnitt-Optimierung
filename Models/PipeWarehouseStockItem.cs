@@ -6,12 +6,63 @@ namespace RohreZuschnittOptimierung.Models;
 public sealed class PipeWarehouseStockItem : INotifyPropertyChanged
 {
   private bool _isSelected;
+  private string _material = PipeMaterialTypes.Steel;
+  private double _lengthMm;
+  private int _quantity;
+  private int _reservedQuantity;
 
   public string ProfileId { get; set; } = string.Empty;
-  public string Material { get; set; } = PipeMaterialTypes.Steel;
-  public double LengthMm { get; set; }
-  public int Quantity { get; set; }
-  public int ReservedQuantity { get; set; }
+
+  public string Material
+  {
+    get => _material;
+    set
+    {
+      if (string.Equals(_material, value, StringComparison.Ordinal))
+        return;
+      _material = value ?? PipeMaterialTypes.Steel;
+      OnPropertyChanged();
+    }
+  }
+
+  public double LengthMm
+  {
+    get => _lengthMm;
+    set
+    {
+      if (Math.Abs(_lengthMm - value) < 0.0001)
+        return;
+      _lengthMm = value;
+      OnPropertyChanged();
+      OnPropertyChanged(nameof(LengthLabel));
+      OnPropertyChanged(nameof(IsOriginalStock));
+      OnPropertyChanged(nameof(StockTypeLabel));
+    }
+  }
+
+  public int Quantity
+  {
+    get => _quantity;
+    set
+    {
+      if (_quantity == value)
+        return;
+      _quantity = value;
+      OnPropertyChanged();
+    }
+  }
+
+  public int ReservedQuantity
+  {
+    get => _reservedQuantity;
+    set
+    {
+      if (_reservedQuantity == value)
+        return;
+      _reservedQuantity = value;
+      OnPropertyChanged();
+    }
+  }
 
   public string ProfileDisplayName { get; set; } = string.Empty;
   public string ProfileKindLabel { get; set; } = string.Empty;

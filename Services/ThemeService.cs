@@ -26,8 +26,10 @@ public static class ThemeService
     IsDarkMode = isDark;
 
     var themeUri = new Uri(
-      isDark ? "Themes/DarkTheme.xaml" : "Themes/LightTheme.xaml",
-      UriKind.Relative);
+      isDark
+        ? "pack://application:,,,/Themes/DarkTheme.xaml"
+        : "pack://application:,,,/Themes/LightTheme.xaml",
+      UriKind.Absolute);
 
     var themeDictionary = new ResourceDictionary { Source = themeUri };
 

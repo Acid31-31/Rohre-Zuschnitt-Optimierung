@@ -6,12 +6,59 @@ public static class PipeWarehouseService
 {
   private const double RemnantReturnThresholdMm = 150;
 
+  /// <summary>
+  /// PDF-Material hat Vorrang. Nur ohne Angabe wird freies Lagermaterial fürs Profil gewählt.
+  /// </summary>
+  public static string ResolveMaterialForAvailableStock(
+    string profileId,
+    string? preferredMaterial,
+    IReadOnlyList<PipeWarehouseStockItem> warehouse,
+    out string? note,
+    bool materialFromDrawing = false)
+  {
+    note = null;
+
+    if (materialFromDrawing && !string.IsNullOrWhiteSpace(preferredMaterial))
+      return preferredMaterial.Trim();
+
+    if (!string.IsNullOrWhiteSpace(preferredMaterial))
+      return preferredMaterial.Trim();
+
+    var forProfile = warehouse
+      .Where(item => string.Equals(item.ProfileId, profileId, StringComparison.OrdinalIgnoreCase)
+                     && item.Quantity > 0)
+      .ToList();
+
+    if (forProfile.Count == 0)
+      return PipeMaterialTypes.Steel;
+
+    var best = forProfile
+      .GroupBy(item => item.Material, StringComparer.OrdinalIgnoreCase)
+      .Select(group => (Material: group.Key, Qty: group.Sum(item => item.Quantity)))
+      .OrderByDescending(entry => entry.Qty)
+      .First();
+
+    note = $"Kein Material in der Zeichnung – Lager nutzt „{best.Material}“ ({best.Qty} Stk) für dieses Profil.";
+    return best.Material;
+  }
+
+  public static int CountAvailableBars(
+    string profileId,
+    string material,
+    IReadOnlyList<PipeWarehouseStockItem> warehouse) =>
+    warehouse
+      .Where(item => string.Equals(item.ProfileId, profileId, StringComparison.OrdinalIgnoreCase)
+                     && string.Equals(item.Material, material, StringComparison.OrdinalIgnoreCase)
+                     && item.Quantity > 0)
+      .Sum(item => item.Quantity);
+
   public static List<StockRemnantEntry> BuildStockForOptimization(
     string profileId,
     string material,
     double originalStockLengthMm,
     IReadOnlyList<PipeWarehouseStockItem> warehouse)
   {
+    // Zuerst Reste und Vollstangen aus dem Lager (nur freier Bestand Quantity > 0)
     var profileItems = warehouse
       .Where(item => string.Equals(item.ProfileId, profileId, StringComparison.OrdinalIgnoreCase)
                      && string.Equals(item.Material, material, StringComparison.OrdinalIgnoreCase)
@@ -20,7 +67,10 @@ public static class PipeWarehouseService
 
     var stock = new List<StockRemnantEntry>();
 
-    foreach (var item in profileItems.OrderBy(i => i.LengthMm))
+    // Kürzere Stücke (Reste) zuerst – Optimierer bevorzugt IsRemnant
+    foreach (var item in profileItems
+               .OrderBy(i => Math.Abs(i.LengthMm - originalStockLengthMm) < 0.5 ? 1 : 0)
+               .ThenBy(i => i.LengthMm))
     {
       stock.Add(new StockRemnantEntry
       {

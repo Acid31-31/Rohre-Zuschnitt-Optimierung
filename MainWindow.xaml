@@ -11,356 +11,592 @@
         Width="1180"
         MinHeight="620"
         MinWidth="980"
-        WindowState="Maximized"
+        FontFamily="Segoe UI"
         Background="{DynamicResource AppBackgroundBrush}"
         Foreground="{DynamicResource TextPrimaryBrush}"
-        WindowStartupLocation="CenterScreen">
+        WindowStartupLocation="CenterScreen"
+        WindowStyle="None"
+        ResizeMode="CanResize">
   <DockPanel Background="{DynamicResource AppBackgroundBrush}">
-    <DockPanel DockPanel.Dock="Top" LastChildFill="True">
-      <Button x:Name="ThemeToggleHeaderButton"
-              DockPanel.Dock="Right"
-              Margin="8,4,12,4"
-              Padding="12,6"
-              Style="{StaticResource SecondaryButtonStyle}"
-              Click="ThemeToggleButton_Click"
-              ToolTip="Zwischen Dunkel- und Hellmodus wechseln"/>
-      <Menu>
-      <MenuItem Header="Datei">
-        <MenuItem x:Name="ExportPdfMenuItem"
-                  Header="Zuschnittplan speichern unter …"
-                  Click="ExportPdf_Click"
-                  IsEnabled="False"/>
-        <Separator/>
-        <MenuItem Header="Beenden"
-                  Click="ExitApplication_Click"/>
-      </MenuItem>
-      <MenuItem Header="Lager">
-        <MenuItem Header="Lagerverwaltung …"
-                  Click="OpenWarehouse_Click"/>
-        <MenuItem Header="Aufträge …"
-                  Click="OpenOrders_Click"/>
-      </MenuItem>
-      <MenuItem Header="Einstellungen">
-        <MenuItem Header="Einstellungen …"
-                  Click="OpenPdfSettings_Click"/>
-        <Separator/>
-        <MenuItem x:Name="ThemeToggleMenuItem"
-                  Header="Hellmodus"
-                  Click="ThemeToggleButton_Click"/>
-      </MenuItem>
-      <MenuItem Header="Info">
-        <MenuItem Header="Nach Updates suchen …"
-                  Click="CheckForUpdates_Click"/>
-        <MenuItem Header="Über die Anwendung …"
-                  Click="ShowAbout_Click"/>
-      </MenuItem>
-    </Menu>
-    </DockPanel>
 
-    <Grid Margin="24">
+    <!-- Kopfleiste wie DOK-V01: Logo + Utility + Fensterbuttons (kein Windows-Titelbalken) -->
+    <Border DockPanel.Dock="Top"
+            Height="148"
+            Background="{DynamicResource HeaderBackgroundBrush}"
+            BorderBrush="{DynamicResource PanelBorderBrush}"
+            BorderThickness="0,0,0,1"
+            MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
+      <Border.Resources>
+        <Style x:Key="HeaderUtilityBtn" TargetType="Button">
+          <Setter Property="Background" Value="Transparent"/>
+          <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}"/>
+          <Setter Property="BorderThickness" Value="0"/>
+          <Setter Property="Padding" Value="12,8"/>
+          <Setter Property="FontSize" Value="13"/>
+          <Setter Property="Cursor" Value="Hand"/>
+          <Setter Property="Template">
+            <Setter.Value>
+              <ControlTemplate TargetType="Button">
+                <Border x:Name="bd" Background="{TemplateBinding Background}" CornerRadius="6" Padding="{TemplateBinding Padding}">
+                  <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                </Border>
+                <ControlTemplate.Triggers>
+                  <Trigger Property="IsMouseOver" Value="True">
+                    <Setter TargetName="bd" Property="Background" Value="{DynamicResource AccentSoftBrush}"/>
+                    <Setter Property="Foreground" Value="{DynamicResource AccentBrush}"/>
+                  </Trigger>
+                </ControlTemplate.Triggers>
+              </ControlTemplate>
+            </Setter.Value>
+          </Setter>
+        </Style>
+        <Style x:Key="TitleBarBtn" TargetType="Button">
+          <Setter Property="Background" Value="Transparent"/>
+          <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}"/>
+          <Setter Property="BorderThickness" Value="0"/>
+          <Setter Property="Width" Value="46"/>
+          <Setter Property="Height" Value="36"/>
+          <Setter Property="FontSize" Value="12"/>
+          <Setter Property="Cursor" Value="Hand"/>
+          <Setter Property="Template">
+            <Setter.Value>
+              <ControlTemplate TargetType="Button">
+                <Border x:Name="bd" Background="{TemplateBinding Background}">
+                  <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                </Border>
+                <ControlTemplate.Triggers>
+                  <Trigger Property="IsMouseOver" Value="True">
+                    <Setter TargetName="bd" Property="Background" Value="#1A2836"/>
+                    <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
+                  </Trigger>
+                </ControlTemplate.Triggers>
+              </ControlTemplate>
+            </Setter.Value>
+          </Setter>
+        </Style>
+        <Style x:Key="TitleBarCloseBtn" TargetType="Button" BasedOn="{StaticResource TitleBarBtn}">
+          <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+              <Setter Property="Background" Value="#C62828"/>
+              <Setter Property="Foreground" Value="White"/>
+            </Trigger>
+          </Style.Triggers>
+        </Style>
+      </Border.Resources>
+
+      <Grid Margin="12,4,0,4">
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="*"/>
+          <ColumnDefinition Width="Auto"/>
+        </Grid.ColumnDefinitions>
+
+        <Image Grid.Column="0"
+               Source="pack://application:,,,/Assets/AppLogo.png"
+               Height="128"
+               MaxHeight="128"
+               MaxWidth="560"
+               Stretch="Uniform"
+               SnapsToDevicePixels="True"
+               RenderOptions.BitmapScalingMode="HighQuality"
+               HorizontalAlignment="Left"
+               VerticalAlignment="Center"
+               Margin="8,0,0,0"/>
+
+        <StackPanel Grid.Column="1"
+                    Orientation="Horizontal"
+                    HorizontalAlignment="Right"
+                    VerticalAlignment="Center">
+          <Button x:Name="HeaderUpdateButton"
+                  Style="{StaticResource HeaderUtilityBtn}"
+                  Click="CheckForUpdates_Click"
+                  Margin="0,0,8,0"
+                  ToolTip="Manuell nach Updates auf GitHub suchen">
+            <StackPanel Orientation="Horizontal">
+              <TextBlock Text="⬆" Margin="0,0,6,0"/>
+              <TextBlock x:Name="HeaderUpdateButtonText" Text="Update prüfen"/>
+            </StackPanel>
+          </Button>
+          <Button Style="{StaticResource HeaderUtilityBtn}"
+                  Click="OpenPdfSettings_Click"
+                  Margin="0,0,8,0"
+                  ToolTip="Einstellungen öffnen">
+            <StackPanel Orientation="Horizontal">
+              <TextBlock Text="⚙" Margin="0,0,6,0"/>
+              <TextBlock Text="Einstellungen"/>
+            </StackPanel>
+          </Button>
+          <Button Style="{StaticResource HeaderUtilityBtn}"
+                  Click="ShowAbout_Click"
+                  Margin="0,0,8,0"
+                  ToolTip="Über die Anwendung">
+            <StackPanel Orientation="Horizontal">
+              <TextBlock Text="ⓘ" Margin="0,0,6,0"/>
+              <TextBlock Text="Info"/>
+            </StackPanel>
+          </Button>
+          <Button Style="{StaticResource HeaderUtilityBtn}"
+                  Click="OpenHelp_Click"
+                  Margin="0,0,8,0"
+                  ToolTip="Kurzanleitung">
+            <StackPanel Orientation="Horizontal">
+              <TextBlock Text="?" Margin="0,0,6,0"/>
+              <TextBlock Text="Hilfe"/>
+            </StackPanel>
+          </Button>
+          <Button x:Name="ThemeToggleHeaderButton"
+                  Style="{StaticResource HeaderUtilityBtn}"
+                  Click="ThemeToggleButton_Click"
+                  Margin="0,0,16,0"
+                  ToolTip="Zwischen Dunkel- und Hellmodus wechseln">
+            <StackPanel Orientation="Horizontal">
+              <TextBlock Text="◐" Margin="0,0,6,0"/>
+              <TextBlock x:Name="ThemeToggleHeaderLabel" Text="Hellmodus"/>
+            </StackPanel>
+          </Button>
+          <Button Style="{StaticResource TitleBarBtn}"
+                  Content="—"
+                  Click="TitleBarMinimize_Click"
+                  ToolTip="Minimieren"/>
+          <Button x:Name="TitleBarMaximizeButton"
+                  Style="{StaticResource TitleBarBtn}"
+                  Content="▢"
+                  Click="TitleBarMaximize_Click"
+                  ToolTip="Maximieren / Wiederherstellen"/>
+          <Button Style="{StaticResource TitleBarCloseBtn}"
+                  Content="✕"
+                  Click="TitleBarClose_Click"
+                  ToolTip="Schließen"/>
+        </StackPanel>
+      </Grid>
+    </Border>
+
+    <!-- Navigationsleiste: Buttons mit Trennlinien; Lager & Aufträge öffnen direkt -->
+    <Border DockPanel.Dock="Top"
+            Background="{DynamicResource SidebarBackgroundBrush}"
+            BorderBrush="{DynamicResource PanelBorderBrush}"
+            BorderThickness="0,0,0,1"
+            Padding="6,0">
+      <Border.Resources>
+        <Style x:Key="NavBarButtonStyle" TargetType="Button">
+          <Setter Property="Background" Value="Transparent"/>
+          <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
+          <Setter Property="BorderThickness" Value="0"/>
+          <Setter Property="Padding" Value="16,10"/>
+          <Setter Property="FontSize" Value="13"/>
+          <Setter Property="Cursor" Value="Hand"/>
+          <Setter Property="VerticalAlignment" Value="Stretch"/>
+          <Setter Property="Template">
+            <Setter.Value>
+              <ControlTemplate TargetType="Button">
+                <Border x:Name="bd"
+                        Background="{TemplateBinding Background}"
+                        Padding="{TemplateBinding Padding}">
+                  <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                </Border>
+                <ControlTemplate.Triggers>
+                  <Trigger Property="IsMouseOver" Value="True">
+                    <Setter TargetName="bd" Property="Background" Value="{DynamicResource AccentSoftBrush}"/>
+                    <Setter Property="Foreground" Value="{DynamicResource AccentBrush}"/>
+                  </Trigger>
+                </ControlTemplate.Triggers>
+              </ControlTemplate>
+            </Setter.Value>
+          </Setter>
+        </Style>
+        <Style x:Key="NavBarDividerStyle" TargetType="Rectangle">
+          <Setter Property="Width" Value="1"/>
+          <Setter Property="Margin" Value="2,10"/>
+          <Setter Property="Fill" Value="{DynamicResource PanelBorderBrush}"/>
+          <Setter Property="VerticalAlignment" Value="Stretch"/>
+        </Style>
+      </Border.Resources>
+
+      <StackPanel Orientation="Horizontal" Height="40">
+        <Menu Background="Transparent"
+              VerticalAlignment="Center"
+              Padding="0">
+          <MenuItem Header="Datei"
+                    Padding="16,10"
+                    FontSize="13">
+            <MenuItem x:Name="ExportPdfMenuItem"
+                      Header="Zuschnittplan speichern unter …"
+                      Click="ExportPdf_Click"
+                      IsEnabled="False"/>
+            <Separator/>
+            <MenuItem Header="Beenden"
+                      Click="ExitApplication_Click"/>
+          </MenuItem>
+        </Menu>
+
+        <Rectangle Style="{StaticResource NavBarDividerStyle}"/>
+
+        <Button Content="Lager"
+                Style="{StaticResource NavBarButtonStyle}"
+                Click="OpenWarehouse_Click"
+                ToolTip="Lagerverwaltung öffnen"/>
+
+        <Rectangle Style="{StaticResource NavBarDividerStyle}"/>
+
+        <Button Content="Aufträge"
+                Style="{StaticResource NavBarButtonStyle}"
+                Click="OpenOrders_Click"
+                ToolTip="Aufträge öffnen"/>
+
+        <Rectangle Style="{StaticResource NavBarDividerStyle}"/>
+
+        <Button Content="Einstellungen"
+                Style="{StaticResource NavBarButtonStyle}"
+                Click="OpenPdfSettings_Click"
+                ToolTip="Einstellungen öffnen"/>
+
+        <Rectangle Style="{StaticResource NavBarDividerStyle}"/>
+
+        <Button Content="Info"
+                Style="{StaticResource NavBarButtonStyle}"
+                Click="ShowAbout_Click"
+                ToolTip="Über die Anwendung"/>
+      </StackPanel>
+    </Border>
+
+    <Grid Margin="20">
       <Grid.RowDefinitions>
         <RowDefinition Height="*"/>
         <RowDefinition Height="Auto"/>
       </Grid.RowDefinitions>
 
-    <Grid Grid.Row="0" Margin="0,0,0,20">
-      <Grid.ColumnDefinitions>
-        <ColumnDefinition Width="430"/>
-        <ColumnDefinition Width="20"/>
-        <ColumnDefinition Width="*"/>
-      </Grid.ColumnDefinitions>
+      <Grid Grid.Row="0" Margin="0,0,0,14">
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="380"/>
+          <ColumnDefinition Width="18"/>
+          <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
 
-      <ScrollViewer Grid.Column="0" VerticalScrollBarVisibility="Auto">
-        <StackPanel>
-          <TextBlock Text="Planung in 3 Schritten"
-                     Style="{DynamicResource SectionHeaderTextStyle}"
-                     Margin="0,0,0,16"/>
+        <!-- Linke Planungsspalte -->
+        <Border Grid.Column="0"
+                Background="{DynamicResource SidebarBackgroundBrush}"
+                BorderBrush="{DynamicResource PanelBorderBrush}"
+                BorderThickness="1"
+                CornerRadius="10"
+                Padding="18,16">
+          <ScrollViewer VerticalScrollBarVisibility="Auto">
+            <StackPanel>
+              <TextBlock Text="Planung"
+                         FontSize="18"
+                         FontWeight="SemiBold"
+                         Margin="0,0,0,4"/>
+              <TextBlock Text="In drei Schritten zum Schnittplan"
+                         Foreground="{DynamicResource TextMutedBrush}"
+                         Margin="0,0,0,16"/>
 
-          <!-- Schritt 1 -->
-          <TextBlock Text="1. Auftrag &amp; Profil"
-                     FontSize="15"
-                     FontWeight="SemiBold"
-                     Margin="0,0,0,10"/>
-
-          <TextBlock Text="Auftragsnummer *"
-                     FontWeight="SemiBold"
-                     Margin="0,0,0,4"/>
-          <TextBox x:Name="OrderReferenceTextBox"
-                   MaxLength="80"
-                   Margin="0,0,0,4"
-                   ToolTip="Pflichtfeld. Wird in PDFs und Lagerreservierung verwendet."/>
-          <TextBlock Foreground="{DynamicResource TextMutedBrush}"
-                     Margin="0,0,0,12"
-                     Text="* Pflichtfeld vor dem Optimieren"/>
-
-          <TextBlock Text="Rohrprofil zum Schneiden" FontWeight="SemiBold" Margin="0,0,0,4"/>
-          <Button x:Name="SelectCutProfileButton"
-                  Content="Profil wählen …"
-                  Click="SelectCutProfile_Click"
-                  HorizontalAlignment="Stretch"
-                  Padding="12,8"
-                  Margin="0,0,0,4"
-                  ToolTip="Profil und Materialart (Stahl, Edelstahl, Aluminium) für diese Optimierung"/>
-          <TextBlock x:Name="CutProfileDisplayTextBlock"
-                     Foreground="{DynamicResource AccentBrush}"
-                     FontWeight="SemiBold"
-                     Margin="0,0,0,4"
-                     TextWrapping="Wrap"
-                     Text="Noch kein Profil gewählt"/>
-          <TextBlock x:Name="WarehouseStatusTextBlock"
-                     Foreground="{DynamicResource TextMutedBrush}"
-                     Margin="0,0,0,12"
-                     TextWrapping="Wrap"
-                     Text="Profil und Materialart wählen — nur passender Lagerbestand wird verwendet."/>
-
-          <TextBlock Text="Material aus Lager" FontWeight="SemiBold" Margin="0,0,0,8"/>
-          <TextBlock Foreground="{DynamicResource TextMutedBrush}" Margin="0,0,0,8"
-                     TextWrapping="Wrap"
-                     Text="Wird aus dem Lager geladen (Menü Lager → Lagerverwaltung)."/>
-          <DataGrid x:Name="RemnantsGrid"
-                    AutoGenerateColumns="False"
-                    CanUserAddRows="False"
-                    CanUserDeleteRows="False"
-                    IsReadOnly="True"
-                    SelectionMode="Single"
-                    SelectionUnit="FullRow"
-                    HeadersVisibility="Column"
-                    Height="100"
-                    Margin="0,0,0,8">
-            <DataGrid.Columns>
-              <DataGridTextColumn Header="Länge (mm)"
-                                  Binding="{Binding LengthMm, UpdateSourceTrigger=PropertyChanged}"
-                                  Width="*"/>
-              <DataGridTextColumn Header="Stück"
-                                  Binding="{Binding Quantity, UpdateSourceTrigger=PropertyChanged}"
-                                  Width="60"/>
-            </DataGrid.Columns>
-          </DataGrid>
-          <TextBlock Foreground="{DynamicResource TextMutedBrush}" Margin="0,0,0,20"
-                     TextWrapping="Wrap"
-                     Text="Rohreste werden zuerst verbraucht, danach neue Stangen."/>
-
-          <!-- Schritt 2 -->
-          <TextBlock Text="2. Teile erfassen"
-                     FontSize="15"
-                     FontWeight="SemiBold"
-                     Margin="0,0,0,10"/>
-
-          <TextBlock Text="Länge und Stückzahl eingeben"
-                     FontWeight="SemiBold"
-                     Margin="0,0,0,8"/>
-          <Grid Margin="0,0,0,12">
-            <Grid.ColumnDefinitions>
-              <ColumnDefinition Width="*"/>
-              <ColumnDefinition Width="12"/>
-              <ColumnDefinition Width="*"/>
-            </Grid.ColumnDefinitions>
-            <Grid.RowDefinitions>
-              <RowDefinition Height="Auto"/>
-              <RowDefinition Height="Auto"/>
-              <RowDefinition Height="Auto"/>
-              <RowDefinition Height="Auto"/>
-              <RowDefinition Height="Auto"/>
-            </Grid.RowDefinitions>
-
-            <TextBlock Grid.Row="0" Grid.Column="0" Text="Rohrlänge (mm)" Margin="0,0,0,4"/>
-            <TextBox Grid.Row="1" Grid.Column="0" x:Name="PartLengthTextBox" Margin="0,0,0,8"/>
-
-            <TextBlock Grid.Row="0" Grid.Column="2" Text="Stückzahl" Margin="0,0,0,4"/>
-            <TextBox Grid.Row="1" Grid.Column="2" x:Name="PartQuantityTextBox" Text="1" Margin="0,0,0,8"/>
-
-            <TextBlock Grid.Row="2" Grid.Column="0" Text="Gehrung Ende A (°)" Margin="0,0,0,4"/>
-            <TextBox Grid.Row="3" Grid.Column="0" x:Name="MiterEnd1TextBox" Text="0"/>
-
-            <TextBlock Grid.Row="2" Grid.Column="2" Text="Gehrung Ende B (°)" Margin="0,0,0,4"/>
-            <TextBox Grid.Row="3" Grid.Column="2" x:Name="MiterEnd2TextBox" Text="0"/>
-
-            <TextBlock Grid.Row="4" Grid.Column="0" Grid.ColumnSpan="3"
-                       Foreground="{DynamicResource TextMutedBrush}"
-                       Text="0° oder 90° = lotrecht. Gehrung z.B. 45. Beide Enden möglich (45/45)."
-                       TextWrapping="Wrap"
-                       Margin="0,8,0,0"/>
-          </Grid>
-
-          <Button x:Name="AddPartButton"
-                  Content="Zur Teilliste hinzufügen"
-                  Click="AddPartFromPdf_Click"
-                  Padding="14,8"
-                  FontWeight="SemiBold"
-                  HorizontalAlignment="Stretch"
-                  Margin="0,0,0,12"
-                  ToolTip="Teil jetzt in die Liste übernehmen"/>
-
-          <Expander x:Name="PdfImportExpander"
-                    Header="Optional: aus PDF übernehmen"
-                    IsExpanded="False"
-                    Margin="0,0,0,16">
-            <StackPanel Margin="0,10,0,0">
-              <Border x:Name="PdfDropBorder"
-                      AllowDrop="True"
-                      BorderBrush="{DynamicResource PanelBorderBrush}"
-                      BorderThickness="2"
+              <!-- Schritt 1 -->
+              <Border Background="{DynamicResource CardBackgroundBrush}"
+                      BorderBrush="{DynamicResource CardBorderBrush}"
+                      BorderThickness="1"
                       CornerRadius="8"
-                      Background="{DynamicResource CardBackgroundBrush}"
-                      Padding="16"
-                      Margin="0,0,0,10"
-                      Cursor="Hand"
-                      DragEnter="PdfDropBorder_DragEnter"
-                      DragOver="PdfDropBorder_DragOver"
-                      DragLeave="PdfDropBorder_DragLeave"
-                      Drop="PdfDropBorder_Drop"
-                      MouseLeftButtonUp="PdfDropBorder_Click"
-                      ToolTip="PDF/ZIP und optional Excel (.xlsx) hierher ziehen oder anklicken">
+                      Padding="14"
+                      Margin="0,0,0,12">
                 <StackPanel>
-                  <TextBlock Text="PDF, ZIP oder Excel hierher ziehen"
+                  <TextBlock Text="1 · Auftrag"
+                             Style="{DynamicResource SectionHeaderTextStyle}"
+                             Margin="0,0,0,10"/>
+                  <TextBlock Text="Auftragsnummer *"
                              FontWeight="SemiBold"
-                             HorizontalAlignment="Center"
-                             Margin="0,0,0,6"/>
-                  <TextBlock x:Name="PdfFolderTextBlock"
+                             Margin="0,0,0,4"/>
+                  <TextBox x:Name="OrderReferenceTextBox"
+                           MaxLength="80"
+                           Margin="0,0,0,6"
+                           ToolTip="Pflichtfeld. Wird in PDFs und Lagerreservierung verwendet."/>
+                  <TextBlock Foreground="{DynamicResource TextMutedBrush}"
+                             Margin="0,0,0,12"
+                             Text="* Pflichtfeld vor dem Optimieren"/>
+
+                  <TextBlock Text="Material aus Lager" FontWeight="SemiBold" Margin="0,0,0,6"/>
+                  <TextBlock x:Name="CutProfileDisplayTextBlock"
+                             Foreground="{DynamicResource AccentBrush}"
+                             FontWeight="SemiBold"
+                             Margin="0,0,0,4"
                              TextWrapping="Wrap"
-                             TextAlignment="Center"
+                             Text="Profil unter „Teile erfassen“ wählen"/>
+                  <TextBlock x:Name="WarehouseStatusTextBlock"
                              Foreground="{DynamicResource TextMutedBrush}"
-                             Text="ZIP mit Zeichnungen ablegen; Excel (.xlsx) optional zusätzlich – Länge und Bestellmenge werden übernommen."/>
+                             Margin="0,0,0,8"
+                             TextWrapping="Wrap"
+                             Text="Nach Profilwahl erscheint hier der passende Lagerbestand."/>
+                  <DataGrid x:Name="RemnantsGrid"
+                            AutoGenerateColumns="False"
+                            CanUserAddRows="False"
+                            CanUserDeleteRows="False"
+                            IsReadOnly="True"
+                            SelectionMode="Single"
+                            SelectionUnit="FullRow"
+                            HeadersVisibility="Column"
+                            Height="96"
+                            Margin="0,0,0,6">
+                    <DataGrid.Columns>
+                      <DataGridTextColumn Header="Länge (mm)"
+                                          Binding="{Binding LengthMm, UpdateSourceTrigger=PropertyChanged}"
+                                          Width="*"/>
+                      <DataGridTextColumn Header="Stück"
+                                          Binding="{Binding Quantity, UpdateSourceTrigger=PropertyChanged}"
+                                          Width="60"/>
+                    </DataGrid.Columns>
+                  </DataGrid>
+                  <TextBlock Foreground="{DynamicResource TextMutedBrush}"
+                             TextWrapping="Wrap"
+                             Text="Rohreste zuerst, danach neue Stangen."/>
                 </StackPanel>
               </Border>
 
-              <TextBlock Text="Erkannte Zeichnungen" Margin="0,0,0,4"/>
-              <ComboBox x:Name="PdfComboBox"
-                        DisplayMemberPath="FileName"
-                        SelectionChanged="PdfComboBox_SelectionChanged"
-                        Margin="0,0,0,8"/>
+              <!-- Schritt 2 -->
+              <Border Background="{DynamicResource CardBackgroundBrush}"
+                      BorderBrush="{DynamicResource CardBorderBrush}"
+                      BorderThickness="1"
+                      CornerRadius="8"
+                      Padding="14"
+                      Margin="0,0,0,12">
+                <StackPanel>
+                  <TextBlock Text="2 · Teile erfassen"
+                             Style="{DynamicResource SectionHeaderTextStyle}"
+                             Margin="0,0,0,10"/>
+                  <Button x:Name="OpenPartsCaptureButton"
+                          Content="Teile erfassen …"
+                          Style="{DynamicResource AccentButtonStyle}"
+                          Click="OpenPartsCapture_Click"
+                          Padding="16,14"
+                          FontSize="15"
+                          FontWeight="SemiBold"
+                          HorizontalAlignment="Stretch"
+                          Margin="0,0,0,8"
+                          ToolTip="Vollbild: Rohrlänge, Gehrung und Profil manuell eingeben"/>
+                  <TextBlock Foreground="{DynamicResource TextMutedBrush}"
+                             TextWrapping="Wrap"
+                             Margin="0,0,0,10"
+                             Text="Länge, Gehrung, Stückzahl und Profil im Vollbild."/>
 
-              <TextBlock x:Name="AnalysisTextBlock"
-                         TextWrapping="Wrap"
-                         Foreground="{DynamicResource TextSecondaryBrush}"
-                         Text="PDF oder ZIP ablegen – Länge und Gehrung werden erkannt und in die Teilliste übernommen."/>
-            </StackPanel>
-          </Expander>
+                  <Expander x:Name="PdfImportExpander"
+                            Header="Optional: aus PDF übernehmen"
+                            IsExpanded="False">
+                    <StackPanel Margin="0,10,0,0">
+                      <Border x:Name="PdfDropBorder"
+                              AllowDrop="True"
+                              BorderBrush="{DynamicResource AccentBrush}"
+                              BorderThickness="1.5"
+                              CornerRadius="8"
+                              Background="{DynamicResource PanelBackgroundBrush}"
+                              Padding="14"
+                              Margin="0,0,0,10"
+                              Cursor="Hand"
+                              DragEnter="PdfDropBorder_DragEnter"
+                              DragOver="PdfDropBorder_DragOver"
+                              DragLeave="PdfDropBorder_DragLeave"
+                              Drop="PdfDropBorder_Drop"
+                              MouseLeftButtonUp="PdfDropBorder_Click"
+                              ToolTip="PDF/ZIP und optional Excel (.xlsx) hierher ziehen oder anklicken">
+                        <StackPanel>
+                          <TextBlock Text="PDF, ZIP oder Excel hierher ziehen"
+                                     FontWeight="SemiBold"
+                                     HorizontalAlignment="Center"
+                                     Margin="0,0,0,6"/>
+                          <TextBlock x:Name="PdfFolderTextBlock"
+                                     TextWrapping="Wrap"
+                                     TextAlignment="Center"
+                                     Foreground="{DynamicResource TextMutedBrush}"
+                                     Text="ZIP mit Zeichnungen; Excel optional für Länge und Menge."/>
+                        </StackPanel>
+                      </Border>
 
-          <!-- Schritt 3 -->
-          <TextBlock Text="3. Optimieren"
-                     FontSize="15"
-                     FontWeight="SemiBold"
-                     Margin="0,0,0,10"/>
+                      <TextBlock Text="Erkannte Zeichnungen" Margin="0,0,0,4"/>
+                      <ComboBox x:Name="PdfComboBox"
+                                DisplayMemberPath="FileName"
+                                SelectionChanged="PdfComboBox_SelectionChanged"
+                                Margin="0,0,0,8"/>
 
-          <TextBlock Text="Teilliste" FontWeight="SemiBold" Margin="0,0,0,8"/>
-          <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
-            <Button Content="Bearbeiten"
-                    Style="{DynamicResource SecondaryButtonStyle}"
-                    Click="EditSelectedPart_Click"
-                    Padding="12,6"
-                    Margin="0,0,8,0"
-                    ToolTip="Ausgewählte Zeile oben in die Eingabe laden"/>
-            <Button Content="Alles löschen"
-                    Style="{DynamicResource DangerButtonStyle}"
-                    Click="ClearAll_Click"
-                    Padding="12,6"
-                    ToolTip="Teilliste, Eingabe und Schnittplan zurücksetzen"/>
-          </StackPanel>
-          <DataGrid x:Name="PartsGrid"
-                    AutoGenerateColumns="False"
-                    CanUserAddRows="False"
-                    CanUserDeleteRows="True"
-                    SelectionMode="Single"
-                    SelectionUnit="FullRow"
-                    HeadersVisibility="Column"
-                    Height="200"
-                    Margin="0,0,0,12">
-            <DataGrid.Columns>
-              <DataGridTextColumn Header="Zeichnung"
-                                  Binding="{Binding DrawingName, UpdateSourceTrigger=PropertyChanged}"
-                                  Width="120"/>
-              <DataGridTextColumn Header="Länge (mm)"
-                                  Binding="{Binding LengthMm, UpdateSourceTrigger=PropertyChanged}"
-                                  Width="90"/>
-              <DataGridTextColumn Header="Gehr. A"
-                                  Binding="{Binding MiterEnd1Deg, UpdateSourceTrigger=PropertyChanged}"
-                                  Width="60"/>
-              <DataGridTextColumn Header="Gehr. B"
-                                  Binding="{Binding MiterEnd2Deg, UpdateSourceTrigger=PropertyChanged}"
-                                  Width="60"/>
-              <DataGridTextColumn Header="Stück"
-                                  Binding="{Binding Quantity, UpdateSourceTrigger=PropertyChanged}"
-                                  Width="50"/>
-            </DataGrid.Columns>
-          </DataGrid>
-
-          <Button x:Name="OptimizeButton"
-                  Content="Optimieren"
-                  Click="Optimize_Click"
-                  Padding="18,10"
-                  FontSize="14"
-                  FontWeight="SemiBold"
-                  HorizontalAlignment="Stretch"
-                  ToolTip="Benötigt Auftragsnummer, Profil und mindestens ein Teil"/>
-        </StackPanel>
-      </ScrollViewer>
-
-      <Border Grid.Column="2"
-              Padding="16"
-              BorderBrush="{DynamicResource PanelBorderBrush}"
-              BorderThickness="1"
-              CornerRadius="6"
-              Background="{DynamicResource PanelBackgroundBrush}">
-        <DockPanel LastChildFill="True">
-          <Grid DockPanel.Dock="Top" Margin="0,0,0,12">
-            <Grid.ColumnDefinitions>
-              <ColumnDefinition Width="*"/>
-              <ColumnDefinition Width="Auto"/>
-            </Grid.ColumnDefinitions>
-            <TextBlock Grid.Column="0"
-                       Text="Schnittplan"
-                       Style="{DynamicResource SectionHeaderTextStyle}"
-                       VerticalAlignment="Center"/>
-            <Button Grid.Column="1"
-                    x:Name="ExportPdfButton"
-                    Content="Zuschnittplan speichern unter …"
-                    Click="ExportPdf_Click"
-                    Padding="14,6"
-                    IsEnabled="False"
-                    ToolTip="Nach dem Optimieren öffnet sich die PDF automatisch. Hier speichern Sie eine Kopie an einem anderen Ort."/>
-          </Grid>
-
-          <TextBlock x:Name="SummaryTextBlock"
-                     DockPanel.Dock="Top"
-                     TextWrapping="Wrap"
-                     Foreground="{DynamicResource TextSecondaryBrush}"
-                     Margin="0,0,0,12"
-                     Text="Noch keine Berechnung. Nach Schritt 3 erscheint hier der Schnittplan."/>
-
-          <ScrollViewer VerticalScrollBarVisibility="Auto">
-            <ItemsControl x:Name="PlanItemsControl">
-              <ItemsControl.ItemTemplate>
-                <DataTemplate>
-                  <Border Margin="0,0,0,14"
-                          Padding="12"
-                          BorderBrush="{DynamicResource CardBorderBrush}"
-                          BorderThickness="1"
-                          CornerRadius="4"
-                          Background="{DynamicResource CardBackgroundBrush}">
-                    <StackPanel>
-                      <TextBlock FontWeight="SemiBold" Text="{Binding Header}"/>
-                      <controls:PipeCutBarDiagram Margin="0,10,0,8"
-                                                  Height="168"
-                                                  BarPlan="{Binding Bar}"
-                                                  StockLengthMm="{Binding StockLengthMm}"
-                                                  KerfMm="{Binding KerfMm}"/>
-                      <TextBlock TextWrapping="Wrap"
-                                 Foreground="{DynamicResource CardTextSecondaryBrush}"
-                                 Text="{Binding Details}"/>
+                      <TextBlock x:Name="AnalysisTextBlock"
+                                 TextWrapping="Wrap"
+                                 Foreground="{DynamicResource TextSecondaryBrush}"
+                                 Text="PDF oder ZIP ablegen – Länge und Gehrung werden erkannt."/>
                     </StackPanel>
-                  </Border>
-                </DataTemplate>
-              </ItemsControl.ItemTemplate>
-            </ItemsControl>
-          </ScrollViewer>
-        </DockPanel>
-      </Border>
-    </Grid>
+                  </Expander>
+                </StackPanel>
+              </Border>
 
-    <TextBlock Grid.Row="1"
-               Foreground="{DynamicResource TextFooterBrush}"
-               Text="1 Auftrag &amp; Profil · 2 Teile · 3 Optimieren"/>
+              <!-- Schritt 3 -->
+              <Border Background="{DynamicResource CardBackgroundBrush}"
+                      BorderBrush="{DynamicResource CardBorderBrush}"
+                      BorderThickness="1"
+                      CornerRadius="8"
+                      Padding="14">
+                <StackPanel>
+                  <TextBlock Text="3 · Optimieren"
+                             Style="{DynamicResource SectionHeaderTextStyle}"
+                             Margin="0,0,0,10"/>
+                  <TextBlock Text="Teilliste" FontWeight="SemiBold" Margin="0,0,0,8"/>
+                  <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                    <Button Content="Bearbeiten"
+                            Style="{DynamicResource SecondaryButtonStyle}"
+                            Click="EditSelectedPart_Click"
+                            Padding="12,6"
+                            Margin="0,0,8,0"
+                            ToolTip="Ausgewählte Zeile im Erfassungsfenster bearbeiten"/>
+                    <Button Content="Alles löschen"
+                            Style="{DynamicResource DangerButtonStyle}"
+                            Click="ClearAll_Click"
+                            Padding="12,6"
+                            ToolTip="Teilliste und Schnittplan zurücksetzen"/>
+                  </StackPanel>
+                  <DataGrid x:Name="PartsGrid"
+                            AutoGenerateColumns="False"
+                            CanUserAddRows="False"
+                            CanUserDeleteRows="True"
+                            SelectionMode="Single"
+                            SelectionUnit="FullRow"
+                            HeadersVisibility="Column"
+                            Height="180"
+                            Margin="0,0,0,12">
+                    <DataGrid.Columns>
+                      <DataGridTextColumn Header="Zeichnung"
+                                          Binding="{Binding DrawingName, UpdateSourceTrigger=PropertyChanged}"
+                                          Width="*"/>
+                      <DataGridTextColumn Header="Länge"
+                                          Binding="{Binding LengthMm, UpdateSourceTrigger=PropertyChanged}"
+                                          Width="70"/>
+                      <DataGridTextColumn Header="A°"
+                                          Binding="{Binding MiterEnd1Deg, UpdateSourceTrigger=PropertyChanged}"
+                                          Width="44"/>
+                      <DataGridTextColumn Header="B°"
+                                          Binding="{Binding MiterEnd2Deg, UpdateSourceTrigger=PropertyChanged}"
+                                          Width="44"/>
+                      <DataGridTextColumn Header="Stk"
+                                          Binding="{Binding Quantity, UpdateSourceTrigger=PropertyChanged}"
+                                          Width="40"/>
+                    </DataGrid.Columns>
+                  </DataGrid>
+
+                  <Button x:Name="OptimizeButton"
+                          Content="Optimieren"
+                          Style="{DynamicResource AccentButtonStyle}"
+                          Click="Optimize_Click"
+                          Padding="18,12"
+                          FontSize="15"
+                          FontWeight="SemiBold"
+                          HorizontalAlignment="Stretch"
+                          ToolTip="Benötigt Auftragsnummer, Profil und mindestens ein Teil"/>
+                </StackPanel>
+              </Border>
+            </StackPanel>
+          </ScrollViewer>
+        </Border>
+
+        <!-- Schnittplan -->
+        <Border Grid.Column="2"
+                Padding="20"
+                BorderBrush="{DynamicResource PanelBorderBrush}"
+                BorderThickness="1"
+                CornerRadius="10"
+                Background="{DynamicResource PanelBackgroundBrush}">
+          <DockPanel LastChildFill="True">
+            <Grid DockPanel.Dock="Top" Margin="0,0,0,14">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+              </Grid.ColumnDefinitions>
+              <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                <TextBlock Text="Schnittplan"
+                           FontSize="18"
+                           FontWeight="SemiBold"/>
+                <TextBlock Foreground="{DynamicResource TextMutedBrush}"
+                           Text="Ergebnis nach dem Optimieren"/>
+              </StackPanel>
+              <Button Grid.Column="1"
+                      x:Name="ExportPdfButton"
+                      Content="PDF speichern unter …"
+                      Style="{DynamicResource SecondaryButtonStyle}"
+                      Click="ExportPdf_Click"
+                      Padding="14,8"
+                      IsEnabled="False"
+                      ToolTip="Nach dem Optimieren öffnet sich die PDF automatisch. Hier speichern Sie eine Kopie."/>
+            </Grid>
+
+            <TextBlock x:Name="SummaryTextBlock"
+                       DockPanel.Dock="Top"
+                       TextWrapping="Wrap"
+                       Foreground="{DynamicResource TextSecondaryBrush}"
+                       Margin="0,0,0,14"
+                       Text="Noch keine Berechnung. Nach Schritt 3 erscheint hier der Schnittplan."/>
+
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+              <ItemsControl x:Name="PlanItemsControl">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate>
+                    <Border Margin="0,0,0,14"
+                            Padding="14"
+                            BorderBrush="{DynamicResource CardBorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="8"
+                            Background="{DynamicResource CardBackgroundBrush}">
+                      <StackPanel>
+                        <TextBlock FontWeight="SemiBold" FontSize="14" Text="{Binding Header}"/>
+                        <controls:PipeCutBarDiagram Margin="0,12,0,10"
+                                                    Height="168"
+                                                    BarPlan="{Binding Bar}"
+                                                    StockLengthMm="{Binding StockLengthMm}"
+                                                    KerfMm="{Binding KerfMm}"/>
+                        <TextBlock TextWrapping="Wrap"
+                                   Foreground="{DynamicResource CardTextSecondaryBrush}"
+                                   Text="{Binding Details}"/>
+                      </StackPanel>
+                    </Border>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </ScrollViewer>
+          </DockPanel>
+        </Border>
+      </Grid>
+
+      <StackPanel Grid.Row="1">
+        <Border x:Name="StopwatchPanel"
+                Visibility="Collapsed"
+                Background="{DynamicResource CardBackgroundBrush}"
+                BorderBrush="{DynamicResource PanelBorderBrush}"
+                BorderThickness="1"
+                CornerRadius="10"
+                Padding="16,12"
+                Margin="0,0,0,10">
+          <StackPanel HorizontalAlignment="Center">
+            <TextBlock x:Name="StopwatchTextBlock"
+                       Text="00:00:00"
+                       FontSize="28"
+                       FontWeight="Bold"
+                       FontFamily="Consolas"
+                       Foreground="{DynamicResource AccentBrush}"
+                       HorizontalAlignment="Center"/>
+            <TextBlock x:Name="StopwatchHintTextBlock"
+                       Text="Verarbeitung läuft…"
+                       FontSize="12"
+                       Foreground="{DynamicResource TextSecondaryBrush}"
+                       HorizontalAlignment="Center"
+                       Margin="0,4,0,0"/>
+          </StackPanel>
+        </Border>
+        <StackPanel x:Name="ProgressPanel" Visibility="Collapsed" Margin="0,0,0,8">
+          <ProgressBar x:Name="BusyProgressBar"
+                       Minimum="0"
+                       Maximum="100"
+                       Value="0"
+                       Height="10"/>
+          <TextBlock x:Name="ProgressLabel"
+                     Text="0 %"
+                     FontSize="12"
+                     FontWeight="SemiBold"
+                     Foreground="{DynamicResource AccentBrush}"
+                     HorizontalAlignment="Center"
+                     Margin="0,6,0,0"/>
+        </StackPanel>
+        <TextBlock Foreground="{DynamicResource TextFooterBrush}"
+                   FontSize="12"
+                   Text="1 Auftrag · 2 Teile · 3 Optimieren — zuerst Rohreste, dann Lagermaterial, Bestellliste nur bei Fehlmenge"/>
+      </StackPanel>
     </Grid>
   </DockPanel>
 </Window>
