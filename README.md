@@ -15,7 +15,7 @@ Desktop-WPF-Anwendung zur Optimierung von Rohrzuschnitten (Stangenlängen, Teile
 ## Entwicklung
 
 ```powershell
-cd "E:\Programierung\Rohre-Zuschnitt-Optimierung"
+cd "Z:\Programierung\Rohre-Zuschnitt-Optimierung"
 dotnet build
 dotnet run
 ```
@@ -38,10 +38,13 @@ Erstellt `RohreZuschnittOptimierung-Release.zip` mit SHA256 in den Release-Notiz
 
 Erzeugt den portablen Ordner unter `USB-Version\Rohre-Zuschnitt-Rxx`.
 
-## Absicherung (USB-Stick + GitHub)
+## Absicherung (Z: + GitHub)
+
+Standardziel ist Laufwerk **Z:** (nicht mehr E:).
 
 ```powershell
 .\Sicherung-USB.ps1
+.\Sicherung-USB.ps1 -DestinationRoot "Z:\"
 ```
 
-Kopiert das lauffähige Programm und ein Quellcode-ZIP auf den USB-Stick (Wechsellaufwerk, z. B. `F:`). Den aktuellen Stand zusätzlich auf GitHub sichern (`git push`).
+Legt unter `Z:\Rohre-Zuschnitt-Optimierung\` das lauffähige Programm und ein Quellcode-ZIP ab. Den aktuellen Stand zusätzlich auf GitHub sichern (`git push` und `.\publish-github-release.ps1`).

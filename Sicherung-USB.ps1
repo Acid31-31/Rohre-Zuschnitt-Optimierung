@@ -1,5 +1,5 @@
 param(
-    [string]$DestinationRoot = ""
+    [string]$DestinationRoot = 'Z:\'
 )
 
 $ErrorActionPreference = "Stop"
@@ -41,9 +41,16 @@ $programDest = Join-Path $backupRoot "Programm"
 $sourceZipName = "Rohre-Zuschnitt-Quelle-$($buildInfo.RevisionLabel).zip"
 $sourceZipDest = Join-Path $backupRoot $sourceZipName
 
-$usbSource = Join-Path $root "USB-Version\$($buildInfo.ProductFolder)"
+$usbSource = Join-Path $root ("USB-Version\" + $buildInfo.ProductFolder)
+$zSource = Join-Path 'Z:\' $buildInfo.ProductFolder
 if (-not (Test-Path (Join-Path $usbSource "RohreZuschnittOptimierung.exe"))) {
-    throw "USB-Programm fehlt: $usbSource`nZuerst .\create-usb-version.ps1 ausfuehren."
+    if (Test-Path (Join-Path $zSource "RohreZuschnittOptimierung.exe")) {
+        $usbSource = $zSource
+        Write-Host "USB-Version im Projekt fehlt - nutze $usbSource"
+    }
+    else {
+        throw "USB-Programm fehlt: $usbSource. Zuerst create-usb-version.ps1 ausfuehren."
+    }
 }
 
 Write-Host "[1/3] Sicherungsordner anlegen: $backupRoot"
@@ -54,7 +61,7 @@ if (Test-Path $programDest) {
     cmd /c "rmdir /s /q `"$programDest`"" | Out-Null
 }
 New-Item -ItemType Directory -Path $programDest -Force | Out-Null
-& robocopy $usbSource $programDest /E /R:2 /W:2 /NFL /NDL /NJH /NJS /NP | Out-Null
+& robocopy $usbSource $programDest /E /R:2 /W:2 /NFL /NDL /NJH /NJS /NP /XD Daten | Out-Null
 if ($LASTEXITCODE -ge 8) {
     throw "Kopieren des Programms fehlgeschlagen (robocopy $LASTEXITCODE)."
 }
@@ -81,24 +88,29 @@ Copy-Item $tempZip $sourceZipDest -Force
 Remove-Item $stage -Recurse -Force
 Remove-Item $tempZip -Force
 
-$readme = @"
-Rohre Zuschnitt Optimierung - Absicherung $($buildInfo.RevisionLabel)
-Stand: $(Get-Date -Format "dd.MM.yyyy HH:mm")
-
-PROGRAMM (sofort nutzbar):
-  Ordner "Programm" auf den PC kopieren oder direkt vom Stick starten:
-  Programm\STARTEN.bat
-  oder Programm\RohreZuschnittOptimierung.exe
-
-QUELLCODE (Wiederherstellung):
-  $sourceZipName  - Projekt ohne Build-Ordner und ohne KI-Paket
-
-GITHUB:
-  https://github.com/Acid31-31/Rohre-Zuschnitt-Optimierung
-
-Diese Sicherung nicht mit den Ordnern "DOK-V01 Soft" oder "Privat" vermischen.
-"@
-Set-Content -Path (Join-Path $backupRoot "README_SICHERUNG.txt") -Value $readme -Encoding UTF8
+$zAppLine = 'Z:\' + $buildInfo.ProductFolder + '\'
+$zZipLine = 'Z:\' + $buildInfo.UsbZipName
+$readmeLines = @(
+    "Rohre Zuschnitt Optimierung - Absicherung $($buildInfo.RevisionLabel)"
+    "Stand: $(Get-Date -Format 'dd.MM.yyyy HH:mm')"
+    ""
+    "PROGRAMM (sofort nutzbar):"
+    "  Ordner Programm auf den PC kopieren oder direkt vom Stick starten:"
+    "  Programm\STARTEN.bat"
+    "  oder Programm\RohreZuschnittOptimierung.exe"
+    ""
+    "QUELLCODE (Wiederherstellung):"
+    ("  " + $sourceZipName + " - Projekt ohne Build-Ordner und ohne KI-Paket")
+    ""
+    "GITHUB:"
+    "  https://github.com/Acid31-31/Rohre-Zuschnitt-Optimierung"
+    ""
+    ("Lauffaehige Kopie: " + $zAppLine)
+    ("ZIP:               " + $zZipLine)
+    ""
+    "Diese Sicherung nicht mit den Ordnern DOK-V01 Soft oder Privat vermischen."
+)
+Set-Content -Path (Join-Path $backupRoot "README_SICHERUNG.txt") -Value $readmeLines -Encoding UTF8
 
 Write-Host ""
 Write-Host "Absicherung fertig: $backupRoot"

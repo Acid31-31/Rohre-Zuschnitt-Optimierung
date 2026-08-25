@@ -16,5 +16,5 @@ cert/
 .DS_Store
 Thumbs.db
 ~$*.xlsx
-
+Logos/
 *_wpftmp.csproj

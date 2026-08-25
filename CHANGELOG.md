@@ -3,6 +3,12 @@
 Jede Revision listet die sichtbaren Änderungen für Nutzer.
 Beim Release liest `publish-github-release.ps1` den Abschnitt zur aktuellen Revision.
 
+## R20
+
+- Komplette Absicherung auf Laufwerk Z: (Programmordner, ZIP und Quellcode)
+- GitHub-Release R20 inkl. Quellcode-Stand
+- Standardpfad nach Ausfall von E: dauerhaft Z:
+
 ## R19
 
 - Fertige USB-Version: Starten, optional einrichten, Deinstallieren – direkt aus dem Ordner

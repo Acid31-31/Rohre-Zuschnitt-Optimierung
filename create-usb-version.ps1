@@ -191,6 +191,20 @@ foreach ($zip in @($usbZipPath, $releaseZipPath)) {
 Compress-Archive -Path (Join-Path $appFolder "*") -DestinationPath $usbZipPath -Force
 Compress-Archive -Path (Join-Path $releaseFolder "*") -DestinationPath $releaseZipPath -Force
 
+Write-Host "[5/5] Kopie auf Z: ($productFolder)..."
+$zFolder = Join-Path 'Z:\' $productFolder
+$zZip = Join-Path 'Z:\' $buildInfo.UsbZipName
+if (Test-Path 'Z:\') {
+    New-Item -ItemType Directory -Path $zFolder -Force | Out-Null
+    & robocopy $appFolder $zFolder /E /R:2 /W:2 /NFL /NDL /NJH /NJS /NP /XD Daten | Out-Null
+    Copy-Item $usbZipPath $zZip -Force
+    Write-Host "Z-Ordner: $zFolder"
+    Write-Host "Z-ZIP:    $zZip"
+}
+else {
+    Write-Warning "Laufwerk Z: nicht gefunden – Kopie uebersprungen."
+}
+
 Write-Host ""
 Write-Host "Fertig - $($buildInfo.RevisionLabel)"
 Write-Host "USB-Ordner:     $appFolder"
@@ -201,3 +215,4 @@ Write-Host ""
 
 explorer.exe $appFolder
 explorer.exe $releaseFolder
+if (Test-Path $zFolder) { explorer.exe $zFolder }
