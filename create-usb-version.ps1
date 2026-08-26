@@ -62,18 +62,26 @@ if (-not (Test-Path $releaseRoot)) {
     New-Item -ItemType Directory -Path $releaseRoot | Out-Null
 }
 
-# Nur den aktuellen Revisionsordner neu anlegen – ältere USB-Ordner nicht löschen,
-# sonst brechen bestehende Desktop-Verknüpfungen (Ziel fehlt).
+# Nur den aktuellen Revisionsordner neu anlegen - aeltere USB-Ordner nicht loeschen,
+# sonst brechen bestehende Desktop-Verknuepfungen (Ziel fehlt).
 foreach ($target in @($appFolder, $releaseFolder)) {
     if (Test-Path $target) {
         try {
             Remove-Item $target -Recurse -Force -ErrorAction Stop
         }
         catch {
-            Write-Warning "Ordner gesperrt (Explorer offen?): $target"
+            Write-Warning "Ordner gesperrt (Explorer offen?): $target - versuche Inhalt zu leeren."
+            Get-ChildItem $target -Force -ErrorAction SilentlyContinue | ForEach-Object {
+                Remove-Item $_.FullName -Recurse -Force -ErrorAction SilentlyContinue
+            }
         }
     }
-    New-Item -ItemType Directory -Path $target -Force | Out-Null
+    if (-not (Test-Path $target)) {
+        New-Item -ItemType Directory -Path $target -Force | Out-Null
+    }
+    if (-not (Test-Path $target)) {
+        throw "Zielordner konnte nicht angelegt werden: $target"
+    }
 }
 
 Write-Host "[3/5] Dateien kopieren..."
@@ -115,7 +123,7 @@ if (Test-Path (Join-Path $vendorAi "ollama\ollama.exe")) {
         if ($LASTEXITCODE -ge 8) {
             throw "Vision-KI Kopie fehlgeschlagen: $aiTarget (robocopy exit $LASTEXITCODE)"
         }
-        # CUDA-Laufzeiten weglassen (Paketgröße); CPU/Vulkan reicht für Vision
+        # CUDA-Laufzeiten weglassen (Paketgroesse); CPU/Vulkan reicht fuer Vision
         Get-ChildItem (Join-Path $aiTarget "ollama\lib\ollama") -Directory -ErrorAction SilentlyContinue |
           Where-Object { $_.Name -like "cuda*" } |
           ForEach-Object { Remove-Item $_.FullName -Recurse -Force -ErrorAction SilentlyContinue }

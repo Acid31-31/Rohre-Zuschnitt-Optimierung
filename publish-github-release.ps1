@@ -103,7 +103,7 @@ if (Test-Path (Join-Path $vendorAi "ollama\ollama.exe")) {
   Copy-Item $aiDest -Destination $aiStaging -Recurse -Force
 }
 else {
-  Write-Warning "vendor\AI fehlt – Release ohne Vision-KI-Paket."
+  Write-Warning "vendor\AI fehlt - Release ohne Vision-KI-Paket."
 }
 
 $zipPath = Join-Path $releaseRoot $assetName
@@ -130,7 +130,7 @@ Write-Host "Tag: $Tag"
 Write-Host ""
 
 if ($SkipGh) {
-  Write-Host "GitHub-Upload übersprungen (-SkipGh)."
+  Write-Host "GitHub-Upload uebersprungen (-SkipGh)."
   explorer.exe $releaseFolder
   exit 0
 }
