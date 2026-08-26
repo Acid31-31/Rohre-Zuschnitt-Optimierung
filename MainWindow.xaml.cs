@@ -31,6 +31,7 @@ public partial class MainWindow : Window
   private readonly TrialLicenseStatus _trialStatus;
   private readonly DispatcherTimer _stopwatchTimer;
   private readonly Stopwatch _operationStopwatch = new();
+  private TimeSpan _projectProcessingElapsed = TimeSpan.Zero;
   private bool _isProcessing;
 
   public MainWindow() : this(TrialLicenseService.Evaluate())
@@ -59,8 +60,48 @@ public partial class MainWindow : Window
       UpdateTitleBarMaximizeGlyph();
       DesktopShortcutService.TryRepairToCurrentExe(out _);
       InitializeWarehouse();
+      PipeWarehouseStore.ExternalChanged += OnWarehouseExternalChanged;
+      Activated += MainWindow_Activated;
+      Closed += (_, _) =>
+      {
+        PipeWarehouseStore.ExternalChanged -= OnWarehouseExternalChanged;
+        Activated -= MainWindow_Activated;
+      };
       await CheckForUpdatesAsync(showIfCurrent: false);
     };
+  }
+
+  private void MainWindow_Activated(object? sender, EventArgs e)
+  {
+    if (_isProcessing)
+      return;
+    RefreshWarehouseFromSharedStore(showStatusNote: false);
+  }
+
+  private void OnWarehouseExternalChanged()
+  {
+    Dispatcher.BeginInvoke(() =>
+    {
+      if (_isProcessing)
+        return;
+      RefreshWarehouseFromSharedStore(showStatusNote: true);
+    });
+  }
+
+  private void RefreshWarehouseFromSharedStore(bool showStatusNote)
+  {
+    try
+    {
+      ReloadWarehouseProfiles();
+      SyncRemnantsFromWarehouse();
+      UpdateWarehouseStatus();
+      if (showStatusNote && PipeWarehouseStore.UsesSharedNetworkPath)
+        WarehouseStatusTextBlock.Text += " · von Zentrale aktualisiert";
+    }
+    catch
+    {
+      // Netzwerk kurz nicht erreichbar
+    }
   }
 
   private void InitializeWarehouse()
@@ -181,9 +222,12 @@ public partial class MainWindow : Window
 
   private void UpdateWarehouseStatus()
   {
+    var sharedHint = PipeWarehouseStore.GetStatusHint();
+
     if (_cutProfile is null || string.IsNullOrWhiteSpace(_cutMaterial))
     {
-      WarehouseStatusTextBlock.Text = $"{_warehouseItems.Count} Lagerzeilen · Profil unter „Teile erfassen“ wählen.";
+      WarehouseStatusTextBlock.Text =
+        $"{_warehouseItems.Count} Lagerzeilen · Profil unter „Teile erfassen“ wählen.{sharedHint}";
       CutProfileDisplayTextBlock.Text = "Profil unter „Teile erfassen“ wählen";
       return;
     }
@@ -202,7 +246,7 @@ public partial class MainWindow : Window
       .Sum(item => item.Quantity);
 
     WarehouseStatusTextBlock.Text =
-      $"{_cutProfile.FullLabel} · {_cutMaterial}: {available} frei, {reserved} reserviert ({original}× {FormatMm(stockLengthMm)} frei) — bei Optimieren wird freies Material reserviert.";
+      $"{_cutProfile.FullLabel} · {_cutMaterial}: {available} frei, {reserved} reserviert ({original}× {FormatMm(stockLengthMm)} frei) — bei Optimieren wird freies Material reserviert.{sharedHint}";
   }
 
   private void UpdateThemeToggleLabel()
@@ -224,7 +268,7 @@ public partial class MainWindow : Window
       + "   Optional: PDF/ZIP per Drag & Drop übernehmen" + Environment.NewLine
       + "3) „Optimieren“ → Schnittplan und PDF" + Environment.NewLine + Environment.NewLine
       + "Lager: Menü „Lager“ für Bestand und Aufträge" + Environment.NewLine
-      + "Einstellungen: Schnittbreite, Stangenlänge, Vision-KI",
+      + "Einstellungen: Optimierung, Netzwerk, PDF, Vision-KI",
       "Hilfe",
       MessageBoxButton.OK,
       MessageBoxImage.Information);
@@ -1084,6 +1128,7 @@ public partial class MainWindow : Window
     _parts.Clear();
     _remnants.Clear();
     _pendingCapturePrefill = null;
+    ResetProjectProcessingTime();
     ClearResult();
   }
 
@@ -1092,6 +1137,8 @@ public partial class MainWindow : Window
     _lastResult = null;
     _lastParts = [];
     SummaryTextBlock.Text = "Noch keine Berechnung. Nach Schritt 3 erscheint hier der Schnittplan.";
+    CutPlanProcessingTimeTextBlock.Visibility = Visibility.Collapsed;
+    CutPlanProcessingTimeTextBlock.Text = string.Empty;
     PlanItemsControl.ItemsSource = null;
     SetExportPdfEnabled(false);
   }
@@ -1169,7 +1216,12 @@ public partial class MainWindow : Window
     if (!string.IsNullOrWhiteSpace(directory))
       Directory.CreateDirectory(directory);
 
-    CutPlanPdfExportService.Export(filePath, _lastResult, _lastParts, orderReference: _lastOrderReference);
+    CutPlanPdfExportService.Export(
+      filePath,
+      _lastResult,
+      _lastParts,
+      orderReference: _lastOrderReference,
+      processingDuration: GetDisplayedProcessingElapsed());
   }
 
   private string GetOrderReferenceOrWarn()
@@ -1456,8 +1508,11 @@ public partial class MainWindow : Window
   private void ShowResult(CutOptimizationResult result)
   {
     var totalPieces = result.Bars.Sum(bar => bar.Pieces.Count);
+    var processingText = FormatProcessingDuration(GetDisplayedProcessingElapsed());
     var summary =
-      $"{result.TotalBars} Stange(n) · {totalPieces} Teil(e) · Verschnitt gesamt: {FormatMm(result.TotalWasteMm)}";
+      $"{result.TotalBars} Stange(n) · {totalPieces} Teil(e) · Verschnitt gesamt: {FormatMm(result.TotalWasteMm)}"
+      + Environment.NewLine
+      + $"Gesamtbearbeitungszeit: {processingText}";
 
     if (result.OrderedNewBarsCount > 0)
       summary += Environment.NewLine
@@ -1470,6 +1525,8 @@ public partial class MainWindow : Window
       summary += Environment.NewLine + $"↩ {_lastReservation.ReturnedRemnantCount} Rohrest(e) ins Lager gebucht";
 
     SummaryTextBlock.Text = summary + Environment.NewLine + result.SawPlanSummary;
+    CutPlanProcessingTimeTextBlock.Text = $"Gesamtbearbeitungszeit: {processingText}";
+    CutPlanProcessingTimeTextBlock.Visibility = Visibility.Visible;
 
     PlanItemsControl.ItemsSource = result.Bars
       .Select(bar => new CutBarPlanViewModel
@@ -1488,6 +1545,30 @@ public partial class MainWindow : Window
       return $"{valueMm:0} mm";
 
     return $"{valueMm:0.##} mm";
+  }
+
+  private static string FormatProcessingDuration(TimeSpan elapsed) =>
+    elapsed < TimeSpan.Zero
+      ? "00:00:00"
+      : elapsed.ToString(@"hh\:mm\:ss");
+
+  private TimeSpan GetDisplayedProcessingElapsed()
+  {
+    var elapsed = _projectProcessingElapsed;
+    if (_isProcessing)
+      elapsed += _operationStopwatch.Elapsed;
+    return elapsed;
+  }
+
+  private void ResetProjectProcessingTime()
+  {
+    _stopwatchTimer.Stop();
+    _operationStopwatch.Reset();
+    _projectProcessingElapsed = TimeSpan.Zero;
+    UpdateStopwatchDisplay();
+    StopwatchHintTextBlock.Text = "Gesamtbearbeitungszeit";
+    StopwatchPanel.Visibility = Visibility.Collapsed;
+    ProgressPanel.Visibility = Visibility.Collapsed;
   }
 
   private void SetProcessingState(bool isProcessing, string? hint = null)
@@ -1510,26 +1591,17 @@ public partial class MainWindow : Window
     {
       _stopwatchTimer.Stop();
       _operationStopwatch.Stop();
+      _projectProcessingElapsed += _operationStopwatch.Elapsed;
       UpdateStopwatchDisplay();
-      StopwatchHintTextBlock.Text = "Gesamtdauer";
-      // Kurz sichtbar lassen, dann ausblenden wenn nicht erneut gestartet
-      var hideTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(4) };
-      hideTimer.Tick += (_, _) =>
-      {
-        hideTimer.Stop();
-        if (_isProcessing)
-          return;
-        StopwatchPanel.Visibility = Visibility.Collapsed;
-        ProgressPanel.Visibility = Visibility.Collapsed;
-      };
-      hideTimer.Start();
+      StopwatchHintTextBlock.Text = "Gesamtbearbeitungszeit";
+      StopwatchPanel.Visibility = Visibility.Visible;
+      ProgressPanel.Visibility = Visibility.Collapsed;
     }
   }
 
   private void UpdateStopwatchDisplay()
   {
-    var elapsed = _operationStopwatch.Elapsed;
-    StopwatchTextBlock.Text = elapsed.ToString(@"hh\:mm\:ss");
+    StopwatchTextBlock.Text = FormatProcessingDuration(GetDisplayedProcessingElapsed());
   }
 
   private void SetProgress(double percent, string? phase = null)

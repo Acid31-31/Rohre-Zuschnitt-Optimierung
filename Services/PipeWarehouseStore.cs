@@ -1,67 +1,98 @@
-using System.IO;
-using System.Text;
-using System.Xml.Linq;
 using RohreZuschnittOptimierung.Models;
 
 namespace RohreZuschnittOptimierung.Services;
 
+/// <summary>
+/// Fassade: lokal / Host / Client. Kein gemeinsames Datei-Lager mehr.
+/// </summary>
 public static class PipeWarehouseStore
 {
-  private const string FileName = "pipe-warehouse.xml";
-  private const double DefaultStockLengthMm = CutOptimizationDefaults.StockLengthMm;
+  private static long _knownVersion = 1;
+  private static DispatcherPoller? _poller;
 
-  public static string FilePath =>
-    Path.Combine(AppInfo.UserDataDirectory, FileName);
+  /// <summary>Andere PCs haben das Lager geändert (Polling gegen Zentrale).</summary>
+  public static event Action? ExternalChanged;
+
+  public static string FilePath => WarehouseSqliteStore.DatabasePath;
+
+  public static bool UsesSharedNetworkPath => GetMode() == WarehouseSyncMode.Client;
+
+  public static bool IsHubHost => GetMode() == WarehouseSyncMode.Host && WarehouseHubServer.IsRunning;
 
   public static List<PipeWarehouseStockItem> Load()
   {
     EnsureInitialized();
-    return LoadCore();
+    var mode = GetMode();
+    if (mode == WarehouseSyncMode.Client)
+    {
+      var url = GetClientUrl();
+      var (version, items) = WarehouseHubClient.Load(url);
+      _knownVersion = version;
+      return items;
+    }
+
+    var local = WarehouseSqliteStore.Load();
+    _knownVersion = local.Version;
+    return local.Items;
   }
 
   public static void Save(IEnumerable<PipeWarehouseStockItem> items)
   {
-    var directory = Path.GetDirectoryName(FilePath)!;
-    Directory.CreateDirectory(directory);
+    EnsureInitialized();
+    var list = items.ToList();
+    var mode = GetMode();
+    if (mode == WarehouseSyncMode.Client)
+    {
+      var url = GetClientUrl();
+      _knownVersion = WarehouseHubClient.Save(url, list, _knownVersion);
+      return;
+    }
 
-    var root = new XElement(
-      "PipeWarehouse",
-      items
-        .Where(item => !string.IsNullOrWhiteSpace(item.ProfileId) && item.LengthMm > 0)
-        .OrderBy(item => item.ProfileKindLabel, StringComparer.OrdinalIgnoreCase)
-        .ThenBy(item => item.ProfileDimensions, StringComparer.OrdinalIgnoreCase)
-        .ThenBy(item => item.LengthMm)
-        .Select(item => new XElement(
-          "Stock",
-          new XAttribute("profileId", item.ProfileId),
-          new XAttribute("material", item.Material ?? PipeMaterialTypes.Steel),
-          new XAttribute("lengthMm", item.LengthMm.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture)),
-          new XAttribute("quantity", item.Quantity),
-          new XAttribute("reservedQuantity", item.ReservedQuantity))));
-
-    root.Save(FilePath);
+    _knownVersion = WarehouseSqliteStore.Save(list, expectedVersion: null);
   }
 
   public static void EnsureInitialized()
   {
-    if (File.Exists(FilePath))
-      return;
+    var settings = AppSettingsStore.Load();
+    ApplyRuntimeMode(settings);
+  }
 
-    InitializeWithAllProfiles();
+  public static void ApplyRuntimeMode(AppSettings settings)
+  {
+    var mode = ParseMode(settings.WarehouseSyncMode);
+    if (mode == WarehouseSyncMode.Host)
+    {
+      WarehouseSqliteStore.EnsureInitialized();
+      WarehouseHubServer.Start(settings.WarehouseHubPort > 0 ? settings.WarehouseHubPort : 5088);
+      StopPolling();
+    }
+    else
+    {
+      WarehouseHubServer.Stop();
+      if (mode == WarehouseSyncMode.Client)
+      {
+        StartPolling(settings.WarehouseHubUrl);
+      }
+      else
+      {
+        StopPolling();
+        WarehouseSqliteStore.EnsureInitialized();
+      }
+    }
   }
 
   public static void InitializeWithAllProfiles(int defaultOriginalQuantity = 0)
   {
+    EnsureInitialized();
     var items = PipeStockCatalog.All
       .Select(profile => new PipeWarehouseStockItem
       {
         ProfileId = profile.Id,
         Material = profile.Material,
-        LengthMm = DefaultStockLengthMm,
+        LengthMm = CutOptimizationDefaults.StockLengthMm,
         Quantity = defaultOriginalQuantity
       })
       .ToList();
-
     RefreshDisplayNames(items);
     Save(items);
   }
@@ -76,32 +107,93 @@ public static class PipeWarehouseStore
     }
   }
 
-  private static List<PipeWarehouseStockItem> LoadCore()
+  public static string GetStatusHint()
   {
-    if (!File.Exists(FilePath))
-      return [];
+    return GetMode() switch
+    {
+      WarehouseSyncMode.Host when WarehouseHubServer.IsRunning =>
+        $" · Lager-Zentrale aktiv (Port {WarehouseHubServer.Port})",
+      WarehouseSyncMode.Host => " · Lager-Zentrale (Start fehlgeschlagen – Port/Firewall?)",
+      WarehouseSyncMode.Client => " · verbunden mit Lager-Zentrale",
+      _ => string.Empty
+    };
+  }
 
-    var document = XDocument.Load(FilePath);
-    var items = document.Root?
-      .Elements("Stock")
-      .Select(element => new PipeWarehouseStockItem
+  // Compatibility no-ops for removed network-share API
+  public static string? ReadConfiguredNetworkDirectory() => null;
+
+  public static void SetConfiguredNetworkDirectory(string? directory)
+  {
+    // entfernt – Netzwerkordner-Freigabe absichtlich nicht mehr unterstützt
+  }
+
+  private static WarehouseSyncMode GetMode() =>
+    ParseMode(AppSettingsStore.Load().WarehouseSyncMode);
+
+  private static string GetClientUrl()
+  {
+    var url = WarehouseHubClient.NormalizeBaseUrl(AppSettingsStore.Load().WarehouseHubUrl);
+    if (string.IsNullOrWhiteSpace(url))
+      throw new InvalidOperationException("Keine Lager-Zentrale konfiguriert (Einstellungen).");
+    return url;
+  }
+
+  private static WarehouseSyncMode ParseMode(string? raw)
+  {
+    if (Enum.TryParse<WarehouseSyncMode>(raw, true, out var mode))
+      return mode;
+    return WarehouseSyncMode.Local;
+  }
+
+  private static void StartPolling(string? hubUrl)
+  {
+    StopPolling();
+    var url = WarehouseHubClient.NormalizeBaseUrl(hubUrl);
+    if (string.IsNullOrWhiteSpace(url))
+      return;
+
+    _poller = new DispatcherPoller(TimeSpan.FromSeconds(2.5), () =>
+    {
+      try
       {
-        ProfileId = (string?)element.Attribute("profileId") ?? string.Empty,
-        Material = (string?)element.Attribute("material") ?? PipeMaterialTypes.Steel,
-        LengthMm = double.TryParse(
-          (string?)element.Attribute("lengthMm"),
-          System.Globalization.NumberStyles.Float,
-          System.Globalization.CultureInfo.InvariantCulture,
-          out var length)
-          ? length
-          : 0,
-        Quantity = int.TryParse((string?)element.Attribute("quantity"), out var quantity) ? quantity : 0,
-        ReservedQuantity = int.TryParse((string?)element.Attribute("reservedQuantity"), out var reserved) ? reserved : 0
-      })
-      .Where(item => !string.IsNullOrWhiteSpace(item.ProfileId) && item.LengthMm > 0)
-      .ToList() ?? [];
+        var (version, _) = WarehouseHubClient.Load(url);
+        if (version != _knownVersion)
+        {
+          _knownVersion = version;
+          ExternalChanged?.Invoke();
+        }
+      }
+      catch
+      {
+      }
+    });
+    _poller.Start();
+  }
 
-    RefreshDisplayNames(items);
-    return items;
+  private static void StopPolling()
+  {
+    _poller?.Dispose();
+    _poller = null;
+  }
+
+  private sealed class DispatcherPoller : IDisposable
+  {
+    private readonly System.Windows.Threading.DispatcherTimer _timer;
+
+    public DispatcherPoller(TimeSpan interval, Action tick)
+    {
+      _timer = new System.Windows.Threading.DispatcherTimer
+      {
+        Interval = interval
+      };
+      _timer.Tick += (_, _) => tick();
+    }
+
+    public void Start() => _timer.Start();
+
+    public void Dispose()
+    {
+      _timer.Stop();
+    }
   }
 }

@@ -6,6 +6,7 @@
         Width="1100"
         MinHeight="560"
         MinWidth="900"
+        WindowState="Maximized"
         WindowStartupLocation="CenterOwner"
         Background="{DynamicResource AppBackgroundBrush}"
         Foreground="{DynamicResource TextPrimaryBrush}">
@@ -93,9 +94,12 @@
                      Foreground="{DynamicResource TextMutedBrush}"
                      Text="Zeichnung in der Liste auswählen."/>
           <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
-            <Image x:Name="PreviewImage"
-                   Stretch="Uniform"
-                   RenderOptions.BitmapScalingMode="HighQuality"/>
+            <!-- Weißer Grund: PDF-Seiten haben oft Transparenz; dunkles UI würde sie „schwarz“ zeigen. -->
+            <Border Background="White" Padding="4">
+              <Image x:Name="PreviewImage"
+                     Stretch="Uniform"
+                     RenderOptions.BitmapScalingMode="HighQuality"/>
+            </Border>
           </ScrollViewer>
         </DockPanel>
       </Border>

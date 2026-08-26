@@ -4,6 +4,7 @@ using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
+using System.Windows.Input;
 using RohreZuschnittOptimierung.Models;
 using RohreZuschnittOptimierung.Services;
 
@@ -32,11 +33,31 @@ public partial class PipeWarehouseWindow : Window
     _view.Filter = FilterItem;
     WarehouseGrid.ItemsSource = _view;
 
-    Loaded += (_, _) => WindowChromeService.ApplyTheme(this, ThemeService.IsDarkMode);
+    Loaded += (_, _) =>
+    {
+      WindowChromeService.ApplyTheme(this, ThemeService.IsDarkMode);
+      PipeWarehouseStore.ExternalChanged += OnWarehouseExternalChanged;
+    };
     Closing += WarehouseWindow_Closing;
+    Closed += (_, _) => PipeWarehouseStore.ExternalChanged -= OnWarehouseExternalChanged;
     LoadItems();
     SetStockFilter(StockFilterMode.InStockOnly);
     UpdateStatus();
+  }
+
+  private void OnWarehouseExternalChanged()
+  {
+    Dispatcher.BeginInvoke(() =>
+    {
+      try
+      {
+        LoadItems();
+        StatusTextBlock.Text += " · von anderem PC aktualisiert";
+      }
+      catch
+      {
+      }
+    });
   }
 
   private bool OpenAddWizard(bool isNewMaterial)
@@ -85,7 +106,121 @@ public partial class PipeWarehouseWindow : Window
   private void StockItem_PropertyChanged(object? sender, PropertyChangedEventArgs e)
   {
     if (e.PropertyName == nameof(PipeWarehouseStockItem.IsSelected))
+    {
       UpdateSelectAllCheckBox();
+      UpdateStatus();
+    }
+  }
+
+  private void WarehouseGrid_MouseDoubleClick(object sender, MouseButtonEventArgs e)
+  {
+    if (WarehouseGrid.SelectedItem is not PipeWarehouseStockItem item)
+      return;
+
+    e.Handled = true;
+    if (!TryPromptQuantity(item, out var quantity))
+      return;
+
+    item.Quantity = quantity;
+    _view.Refresh();
+    UpdateSelectAllCheckBox();
+    UpdateStatus();
+  }
+
+  private bool TryPromptQuantity(PipeWarehouseStockItem item, out int quantity)
+  {
+    quantity = item.Quantity;
+
+    var input = new TextBox
+    {
+      Text = item.Quantity.ToString(CultureInfo.CurrentCulture),
+      Margin = new Thickness(16, 12, 16, 8),
+      Padding = new Thickness(8, 6, 8, 6),
+      MinWidth = 220
+    };
+
+    var ok = new Button
+    {
+      Content = "OK",
+      IsDefault = true,
+      MinWidth = 88,
+      Margin = new Thickness(0, 0, 8, 0),
+      Padding = new Thickness(12, 6, 12, 6)
+    };
+    var cancel = new Button
+    {
+      Content = "Abbrechen",
+      IsCancel = true,
+      MinWidth = 88,
+      Padding = new Thickness(12, 6, 12, 6)
+    };
+
+    var buttons = new StackPanel
+    {
+      Orientation = Orientation.Horizontal,
+      HorizontalAlignment = HorizontalAlignment.Right,
+      Margin = new Thickness(16, 8, 16, 16)
+    };
+    buttons.Children.Add(ok);
+    buttons.Children.Add(cancel);
+
+    var root = new StackPanel();
+    root.Children.Add(new TextBlock
+    {
+      Text = $"Menge für {item.ProfileDisplayName}",
+      Margin = new Thickness(16, 16, 16, 0),
+      TextWrapping = TextWrapping.Wrap,
+      FontWeight = FontWeights.SemiBold
+    });
+    root.Children.Add(input);
+    root.Children.Add(buttons);
+
+    var dialog = new Window
+    {
+      Title = "Menge ändern",
+      Owner = this,
+      Content = root,
+      SizeToContent = SizeToContent.WidthAndHeight,
+      ResizeMode = ResizeMode.NoResize,
+      WindowStartupLocation = WindowStartupLocation.CenterOwner,
+      ShowInTaskbar = false,
+      Background = Background,
+      Foreground = Foreground
+    };
+
+    var accepted = false;
+    ok.Click += (_, _) =>
+    {
+      accepted = true;
+      dialog.DialogResult = true;
+      dialog.Close();
+    };
+    cancel.Click += (_, _) =>
+    {
+      dialog.DialogResult = false;
+      dialog.Close();
+    };
+
+    dialog.Loaded += (_, _) =>
+    {
+      input.Focus();
+      input.SelectAll();
+    };
+
+    if (dialog.ShowDialog() != true || !accepted)
+      return false;
+
+    if (!int.TryParse(input.Text.Trim(), NumberStyles.Integer, CultureInfo.CurrentCulture, out quantity)
+        && !int.TryParse(input.Text.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out quantity))
+    {
+      MessageBox.Show(this, "Bitte eine ganze Zahl als Menge eingeben.", "Menge ändern", MessageBoxButton.OK, MessageBoxImage.Warning);
+      return false;
+    }
+
+    if (quantity < 0)
+      quantity = 0;
+
+    return true;
   }
 
   private IEnumerable<PipeWarehouseStockItem> GetVisibleItems() =>

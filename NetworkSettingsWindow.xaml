@@ -1,0 +1,128 @@
+<Window x:Class="RohreZuschnittOptimierung.NetworkSettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Netzwerk"
+        Height="520"
+        Width="560"
+        MinHeight="440"
+        MinWidth="480"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="CanResize"
+        Background="{DynamicResource AppBackgroundBrush}"
+        Foreground="{DynamicResource TextPrimaryBrush}">
+  <Grid Margin="24">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto"/>
+      <RowDefinition Height="Auto"/>
+      <RowDefinition Height="*"/>
+      <RowDefinition Height="Auto"/>
+    </Grid.RowDefinitions>
+
+    <TextBlock Grid.Row="0"
+               Text="Netzwerk"
+               FontSize="20"
+               FontWeight="SemiBold"
+               Foreground="{DynamicResource SectionHeaderBrush}"/>
+
+    <TextBlock Grid.Row="1"
+               Margin="0,10,0,16"
+               TextWrapping="Wrap"
+               Foreground="{DynamicResource TextSecondaryBrush}"
+               Text="Gemeinsames Lager über Lager-Zentrale. Kein gemeinsamer Dateiordner."/>
+
+    <Border Grid.Row="2"
+            Padding="16"
+            BorderBrush="{DynamicResource PanelBorderBrush}"
+            BorderThickness="1"
+            CornerRadius="8"
+            Background="{DynamicResource PanelBackgroundBrush}">
+      <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel>
+          <TextBlock Text="Gemeinsames Lager (mehrere PCs)"
+                     Style="{DynamicResource SectionHeaderTextStyle}"
+                     Margin="0,0,0,10"/>
+          <TextBlock TextWrapping="Wrap"
+                     Foreground="{DynamicResource TextSecondaryBrush}"
+                     Margin="0,0,0,8"
+                     Text="Ein PC ist die Lager-Zentrale mit Datenbank; die anderen verbinden sich darüber."/>
+          <ComboBox x:Name="WarehouseSyncModeComboBox"
+                    Margin="0,0,0,8"
+                    SelectedIndex="0"
+                    SelectionChanged="WarehouseSyncModeComboBox_SelectionChanged">
+            <ComboBoxItem Content="Nur dieser PC (lokal)"/>
+            <ComboBoxItem Content="Dieser PC ist Lager-Zentrale"/>
+            <ComboBoxItem Content="Mit Lager-Zentrale verbinden"/>
+          </ComboBox>
+          <TextBlock Text="Port der Zentrale (Host)"
+                     Margin="0,0,0,4"/>
+          <TextBox x:Name="WarehouseHubPortTextBox"
+                   Width="100"
+                   HorizontalAlignment="Left"
+                   Text="5088"
+                   Margin="0,0,0,8"
+                   TextChanged="WarehouseHubPortTextBox_TextChanged"/>
+          <StackPanel x:Name="HostAddressPanel" Visibility="Collapsed" Margin="0,0,0,10">
+            <TextBlock Text="Adresse für andere PCs (zum Kopieren)"
+                       Margin="0,0,0,4"/>
+            <DockPanel LastChildFill="True" Margin="0,0,0,4">
+              <Button DockPanel.Dock="Right"
+                      Content="Kopieren"
+                      Click="CopyHostAddress_Click"
+                      Padding="12,6"
+                      Margin="8,0,0,0"
+                      Style="{DynamicResource SecondaryButtonStyle}"/>
+              <TextBox x:Name="HostAddressTextBox"
+                       Padding="8,6"
+                       IsReadOnly="True"
+                       FontFamily="Consolas"/>
+            </DockPanel>
+            <TextBlock x:Name="HostAddressHintTextBlock"
+                       TextWrapping="Wrap"
+                       Foreground="{DynamicResource TextMutedBrush}"
+                       Text="Diese Adresse auf den anderen PCs unter „Mit Lager-Zentrale verbinden“ eintragen."/>
+          </StackPanel>
+          <TextBlock x:Name="ClientAddressLabel"
+                     Text="Adresse der Zentrale (Client), z. B. http://192.168.1.20:5088"
+                     Margin="0,0,0,4"/>
+          <DockPanel x:Name="ClientAddressPanel" Margin="0,0,0,6" LastChildFill="True">
+            <Button DockPanel.Dock="Right"
+                    Content="Prüfen"
+                    Click="ProbeWarehouseHub_Click"
+                    Padding="12,6"
+                    Margin="8,0,0,0"
+                    Style="{DynamicResource SecondaryButtonStyle}"/>
+            <TextBox x:Name="WarehouseHubUrlTextBox"
+                     Padding="8,6"/>
+          </DockPanel>
+          <TextBlock x:Name="WarehouseHubStatusTextBlock"
+                     TextWrapping="Wrap"
+                     Foreground="{DynamicResource TextMutedBrush}"
+                     Text="Lokal: SQLite neben der EXE (Daten\\pipe-warehouse.db)"/>
+        </StackPanel>
+      </ScrollViewer>
+    </Border>
+
+    <Grid Grid.Row="3" Margin="0,18,0,0">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="*"/>
+        <ColumnDefinition Width="Auto"/>
+        <ColumnDefinition Width="12"/>
+        <ColumnDefinition Width="Auto"/>
+      </Grid.ColumnDefinitions>
+      <TextBlock Grid.Column="0"
+                 VerticalAlignment="Center"
+                 Foreground="{DynamicResource TextMutedBrush}"
+                 Text="Änderungen werden beim Speichern übernommen."/>
+      <Button Grid.Column="1"
+              Content="Speichern"
+              Click="Save_Click"
+              Padding="14,8"/>
+      <Button Grid.Column="3"
+              Style="{DynamicResource SecondaryButtonStyle}"
+              Content="Schließen"
+              Click="Close_Click"
+              Padding="14,8"
+              IsCancel="True"/>
+    </Grid>
+  </Grid>
+</Window>

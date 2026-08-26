@@ -33,7 +33,10 @@ public static class AppSettingsStore
         KerfMm = ReadDouble(root, nameof(AppSettings.KerfMm), RohreZuschnittOptimierung.CutOptimizationDefaults.KerfMm),
         LocalAiEnabled = localAi,
         OllamaBaseUrl = ReadString(root, nameof(AppSettings.OllamaBaseUrl), "http://127.0.0.1:11435"),
-        OllamaVisionModel = ReadString(root, nameof(AppSettings.OllamaVisionModel), BundledAiRuntime.DefaultModel)
+        OllamaVisionModel = ReadString(root, nameof(AppSettings.OllamaVisionModel), BundledAiRuntime.DefaultModel),
+        WarehouseSyncMode = ReadString(root, nameof(AppSettings.WarehouseSyncMode), nameof(WarehouseSyncMode.Local)),
+        WarehouseHubPort = ReadInt(root, nameof(AppSettings.WarehouseHubPort), 5088),
+        WarehouseHubUrl = ReadString(root, nameof(AppSettings.WarehouseHubUrl), string.Empty)
       };
     }
     catch
@@ -51,6 +54,10 @@ public static class AppSettingsStore
       settings.OllamaBaseUrl = "http://127.0.0.1:11435";
     if (string.IsNullOrWhiteSpace(settings.OllamaVisionModel))
       settings.OllamaVisionModel = BundledAiRuntime.DefaultModel;
+    if (settings.WarehouseHubPort is < 1 or > 65535)
+      settings.WarehouseHubPort = 5088;
+    if (string.IsNullOrWhiteSpace(settings.WarehouseSyncMode))
+      settings.WarehouseSyncMode = nameof(WarehouseSyncMode.Local);
 
     var root = new XElement(
       "AppSettings",
@@ -62,13 +69,21 @@ public static class AppSettingsStore
         settings.KerfMm.ToString("0.###", CultureInfo.InvariantCulture)),
       new XElement(nameof(AppSettings.LocalAiEnabled), settings.LocalAiEnabled ? "true" : "false"),
       new XElement(nameof(AppSettings.OllamaBaseUrl), settings.OllamaBaseUrl),
-      new XElement(nameof(AppSettings.OllamaVisionModel), settings.OllamaVisionModel));
+      new XElement(nameof(AppSettings.OllamaVisionModel), settings.OllamaVisionModel),
+      new XElement(nameof(AppSettings.WarehouseSyncMode), settings.WarehouseSyncMode),
+      new XElement(nameof(AppSettings.WarehouseHubPort), settings.WarehouseHubPort.ToString(CultureInfo.InvariantCulture)),
+      new XElement(nameof(AppSettings.WarehouseHubUrl), settings.WarehouseHubUrl ?? string.Empty));
 
     root.Save(FilePath);
   }
 
   private static double ReadDouble(XElement root, string name, double fallback) =>
     double.TryParse((string?)root.Element(name), NumberStyles.Float, CultureInfo.InvariantCulture, out var value)
+      ? value
+      : fallback;
+
+  private static int ReadInt(XElement root, string name, int fallback) =>
+    int.TryParse((string?)root.Element(name), NumberStyles.Integer, CultureInfo.InvariantCulture, out var value)
       ? value
       : fallback;
 

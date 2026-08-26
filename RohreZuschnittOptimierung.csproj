@@ -11,13 +11,14 @@
     <ApplicationIcon>Assets\AppIcon.ico</ApplicationIcon>
     <AssemblyTitle>Rohre Zuschnitt Optimierung</AssemblyTitle>
     <Product>Rohre Zuschnitt Optimierung</Product>
-    <Version>1.0.21</Version>
-    <AssemblyVersion>1.0.0.21</AssemblyVersion>
-    <FileVersion>1.0.0.21</FileVersion>
+    <Version>1.0.22</Version>
+    <AssemblyVersion>1.0.0.22</AssemblyVersion>
+    <FileVersion>1.0.0.22</FileVersion>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="Docnet.Core" Version="2.6.0" />
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="8.0.11" />
     <PackageReference Include="PDFsharp" Version="6.2.0" />
     <PackageReference Include="UglyToad.PdfPig" Version="1.7.0-custom-5" />
   </ItemGroup>

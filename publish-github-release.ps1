@@ -93,14 +93,20 @@ if (Test-Path (Join-Path $vendorAi "ollama\ollama.exe")) {
   $aiDest = Join-Path $releaseFolder "AI"
   if (Test-Path $aiDest) { Remove-Item $aiDest -Recurse -Force }
   New-Item -ItemType Directory -Path $aiDest -Force | Out-Null
-  Copy-Item (Join-Path $vendorAi "*") -Destination $aiDest -Recurse -Force
+  & robocopy $vendorAi $aiDest /E /R:2 /W:2 /NFL /NDL /NJH /NJS /NP /MT:8 | Out-Null
+  if ($LASTEXITCODE -ge 8) {
+    throw "Vision-KI Kopie fehlgeschlagen: $aiDest (robocopy exit $LASTEXITCODE)"
+  }
   Get-ChildItem (Join-Path $aiDest "ollama\lib\ollama") -Directory -ErrorAction SilentlyContinue |
     Where-Object { $_.Name -like "cuda*" } |
     ForEach-Object { Remove-Item $_.FullName -Recurse -Force -ErrorAction SilentlyContinue }
-  # AI auch ins ZIP-Staging
   $aiStaging = Join-Path $staging "AI"
   if (Test-Path $aiStaging) { Remove-Item $aiStaging -Recurse -Force }
-  Copy-Item $aiDest -Destination $aiStaging -Recurse -Force
+  New-Item -ItemType Directory -Path $aiStaging -Force | Out-Null
+  & robocopy $aiDest $aiStaging /E /R:2 /W:2 /NFL /NDL /NJH /NJS /NP /MT:8 | Out-Null
+  if ($LASTEXITCODE -ge 8) {
+    throw "Vision-KI Staging-Kopie fehlgeschlagen (robocopy exit $LASTEXITCODE)"
+  }
 }
 else {
   Write-Warning "vendor\AI fehlt - Release ohne Vision-KI-Paket."

@@ -63,6 +63,9 @@ internal static class PdfPreviewService
         return false;
       }
 
+      // Pdfium liefert oft transparente Pixel; auf Weiß compositen = normale Papieransicht.
+      FlattenPremultipliedBgraOntoWhite(raw);
+
       var bitmap = BitmapSource.Create(
         width,
         height,
@@ -90,6 +93,35 @@ internal static class PdfPreviewService
     {
       error = "PDF-Vorschau fehlgeschlagen: " + ex.Message;
       return false;
+    }
+  }
+
+  /// <summary>
+  /// Docnet/Pdfium BGRA kann premultiplied + transparent sein. Blend auf Weiß für normale Darstellung.
+  /// </summary>
+  private static void FlattenPremultipliedBgraOntoWhite(byte[] bgra)
+  {
+    for (var i = 0; i + 3 < bgra.Length; i += 4)
+    {
+      var a = bgra[i + 3];
+      if (a == 255)
+        continue;
+
+      if (a == 0)
+      {
+        bgra[i] = 255;
+        bgra[i + 1] = 255;
+        bgra[i + 2] = 255;
+        bgra[i + 3] = 255;
+        continue;
+      }
+
+      // Premultiplied: C_out = C_src + white * (1 - a/255)
+      var inv = 255 - a;
+      bgra[i] = (byte)Math.Min(255, bgra[i] + inv);
+      bgra[i + 1] = (byte)Math.Min(255, bgra[i + 1] + inv);
+      bgra[i + 2] = (byte)Math.Min(255, bgra[i + 2] + inv);
+      bgra[i + 3] = 255;
     }
   }
 }

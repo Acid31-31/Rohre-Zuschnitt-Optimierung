@@ -15,7 +15,8 @@ public static class CutPlanPdfExportService
     CutOptimizationResult result,
     IReadOnlyList<CutPartEntry> parts,
     PdfExportSettings? settings = null,
-    string? orderReference = null)
+    string? orderReference = null,
+    TimeSpan? processingDuration = null)
   {
     settings ??= PdfExportSettingsStore.Load();
     PdfFontBootstrap.EnsureInitialized();
@@ -49,7 +50,16 @@ public static class CutPlanPdfExportService
     if (settings.ShowCreatedDate)
       y = DrawLine(gfx, $"Erstellt: {DateTime.Now:dd.MM.yyyy HH:mm}", fontSmall, MarginPt, y, contentWidth);
 
-    if (settings.ShowCreatedDate)
+    if (processingDuration is { } duration && duration > TimeSpan.Zero)
+      y = DrawLine(
+        gfx,
+        $"Gesamtbearbeitungszeit: {duration.ToString(@"hh\:mm\:ss")}",
+        fontBold,
+        MarginPt,
+        y,
+        contentWidth);
+
+    if (settings.ShowCreatedDate || processingDuration is { } d && d > TimeSpan.Zero)
       y += 10;
 
     if (settings.ShowSummaryHeader)

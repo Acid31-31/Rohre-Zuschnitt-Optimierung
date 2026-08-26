@@ -65,6 +65,7 @@ public partial class App : Application
     }
 
     PipeWarehouseStore.EnsureInitialized();
+    PipeWarehouseStore.ApplyRuntimeMode(AppSettingsStore.Load());
     var mainWindow = new MainWindow(trialStatus);
     mainWindow.Show();
     base.OnStartup(e);

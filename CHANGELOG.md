@@ -3,6 +3,15 @@
 Jede Revision listet die sichtbaren Änderungen für Nutzer.
 Beim Release liest `publish-github-release.ps1` den Abschnitt zur aktuellen Revision.
 
+## R22
+
+- Einstellungen aufgeteilt: Optimierung, Netzwerk, PDF-Zuschnittplan, Vision-KI (eigene Fenster)
+- Lager-Zentrale für mehrere PCs (SQLite + HTTP, kein gemeinsamer Dateiordner)
+- Host-Adresse mit Port zum Kopieren in den Netzwerkeinstellungen
+- Lager-Mengenbearbeitung per Doppelklick; Spalte „Menge“
+- PDF-Vorschau maximiert mit weißem Papierhintergrund
+- Gesamtbearbeitungszeit im Schnittplan und PDF
+
 ## R21
 
 - Neues Design wiederhergestellt (Logo-Kopfleiste, Planung / Schnittplan)

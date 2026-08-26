@@ -26,7 +26,7 @@
       <TextBlock Margin="0,8,0,0"
                  TextWrapping="Wrap"
                  Foreground="{DynamicResource TextSecondaryBrush}"
-                 Text="Nur Zeilen mit Bestand zählen als Lager. Katalogprofile mit Stückzahl 0 sind kein Vorrat — über „+ Neumaterial“ eintragen. Änderungen werden beim Schließen gespeichert."/>
+                 Text="Nur Zeilen mit Bestand zählen als Lager. Katalogprofile mit Menge 0 sind kein Vorrat. Doppelklick: Menge ändern. Mehrere PCs: Einstellungen → Netzwerk. Änderungen werden beim Speichern/Schließen gesichert."/>
     </StackPanel>
 
     <WrapPanel Grid.Row="1" Margin="0,16,0,10">
@@ -110,11 +110,13 @@
                 CanUserDeleteRows="False"
                 SelectionMode="Single"
                 SelectionUnit="FullRow"
-                HeadersVisibility="Column">
+                HeadersVisibility="Column"
+                MouseDoubleClick="WarehouseGrid_MouseDoubleClick">
         <DataGrid.Columns>
           <DataGridCheckBoxColumn Header="✓"
                                   Binding="{Binding IsSelected, UpdateSourceTrigger=PropertyChanged}"
-                                  Width="44"/>
+                                  Width="44"
+                                  IsReadOnly="False"/>
           <DataGridTextColumn Header="Art"
                               Binding="{Binding StockTypeLabel}"
                               IsReadOnly="True"
@@ -128,14 +130,16 @@
                               IsReadOnly="True"
                               Width="*"/>
           <DataGridTextColumn Header="Material"
-                              Binding="{Binding Material, UpdateSourceTrigger=PropertyChanged}"
+                              Binding="{Binding Material, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
                               Width="100"/>
           <DataGridTextColumn Header="Länge (mm)"
-                              Binding="{Binding LengthMm, UpdateSourceTrigger=PropertyChanged}"
+                              Binding="{Binding LengthMm, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
                               Width="100"/>
-          <DataGridTextColumn Header="Frei"
-                              Binding="{Binding Quantity, UpdateSourceTrigger=PropertyChanged}"
-                              Width="60"/>
+          <DataGridTextColumn Header="Menge"
+                              Binding="{Binding Quantity, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                              Width="70"
+                              IsReadOnly="True"
+                              ToolTipService.ToolTip="Doppelklick: Menge ändern"/>
           <DataGridTextColumn Header="Reserviert"
                               Binding="{Binding ReservedQuantity, UpdateSourceTrigger=PropertyChanged}"
                               IsReadOnly="True"

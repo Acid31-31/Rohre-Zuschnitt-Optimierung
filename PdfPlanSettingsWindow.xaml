@@ -1,0 +1,102 @@
+<Window x:Class="RohreZuschnittOptimierung.PdfPlanSettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="PDF-Zuschnittplan"
+        Height="520"
+        Width="560"
+        MinHeight="440"
+        MinWidth="480"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="CanResize"
+        Background="{DynamicResource AppBackgroundBrush}"
+        Foreground="{DynamicResource TextPrimaryBrush}">
+  <Grid Margin="24">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto"/>
+      <RowDefinition Height="Auto"/>
+      <RowDefinition Height="*"/>
+      <RowDefinition Height="Auto"/>
+    </Grid.RowDefinitions>
+
+    <TextBlock Grid.Row="0"
+               Text="PDF-Zuschnittplan"
+               FontSize="20"
+               FontWeight="SemiBold"
+               Foreground="{DynamicResource SectionHeaderBrush}"/>
+
+    <TextBlock Grid.Row="1"
+               Margin="0,10,0,16"
+               TextWrapping="Wrap"
+               Foreground="{DynamicResource TextSecondaryBrush}"
+               Text="Welche Inhalte im Zuschnittplan-PDF erscheinen."/>
+
+    <Border Grid.Row="2"
+            Padding="16"
+            BorderBrush="{DynamicResource PanelBorderBrush}"
+            BorderThickness="1"
+            CornerRadius="8"
+            Background="{DynamicResource PanelBackgroundBrush}">
+      <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel>
+          <TextBlock Text="Kopf"
+                     Style="{DynamicResource SectionHeaderTextStyle}"
+                     Margin="0,0,0,10"/>
+          <CheckBox x:Name="ShowCreatedDateCheckBox"
+                    Content="Erstellungsdatum"
+                    Margin="0,0,0,8"/>
+          <CheckBox x:Name="ShowSummaryHeaderCheckBox"
+                    Content="Zusammenfassung (Stangen, Teile, Verschnitt)"
+                    Margin="0,0,0,8"/>
+          <CheckBox x:Name="ShowTotalSawSummaryCheckBox"
+                    Content="Gesamt-Sägeverstellung"
+                    Margin="0,0,0,16"/>
+
+          <TextBlock Text="Inhalt"
+                     Style="{DynamicResource SectionHeaderTextStyle}"
+                     Margin="0,0,0,10"/>
+          <CheckBox x:Name="ShowPartsOverviewCheckBox"
+                    Content="Teileübersicht"
+                    Margin="0,0,0,8"/>
+          <CheckBox x:Name="ShowBarDiagramCheckBox"
+                    Content="Stangendiagramm (Grafik)"
+                    Margin="0,0,0,8"/>
+          <CheckBox x:Name="ShowBarUsageInfoCheckBox"
+                    Content="Stangen-Info (Genutzt, Rest, Säge verstellen)"
+                    Margin="0,0,0,16"/>
+
+          <TextBlock Text="Schnittfolge"
+                     Style="{DynamicResource SectionHeaderTextStyle}"
+                     Margin="0,0,0,10"/>
+          <CheckBox x:Name="ShowDiagramCutSequenceLineCheckBox"
+                    Content="Schnittfolge-Zeile unter dem Diagramm (z. B. 90° · 90° · 90°)"
+                    Margin="0,0,0,8"/>
+          <CheckBox x:Name="ShowDetailedCutSequenceCheckBox"
+                    Content="Detaillierte Schnittfolge (nummerierte Schritte und Text)"/>
+        </StackPanel>
+      </ScrollViewer>
+    </Border>
+
+    <Grid Grid.Row="3" Margin="0,18,0,0">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="*"/>
+        <ColumnDefinition Width="Auto"/>
+        <ColumnDefinition Width="12"/>
+        <ColumnDefinition Width="Auto"/>
+      </Grid.ColumnDefinitions>
+      <TextBlock Grid.Column="0"
+                 VerticalAlignment="Center"
+                 Foreground="{DynamicResource TextMutedBrush}"
+                 Text="Änderungen werden beim Speichern übernommen."/>
+      <Button Grid.Column="1"
+              Content="Speichern"
+              Click="Save_Click"
+              Padding="14,8"/>
+      <Button Grid.Column="3"
+              Style="{DynamicResource SecondaryButtonStyle}"
+              Content="Schließen"
+              Click="Close_Click"
+              Padding="14,8"
+              IsCancel="True"/>
+    </Grid>
+  </Grid>
+</Window>
