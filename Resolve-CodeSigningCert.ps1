@@ -41,13 +41,23 @@ function Get-SignToolPath {
         return $signtool
     }
 
+    $pf86 = [Environment]::GetEnvironmentVariable("ProgramFiles(x86)")
+    if ([string]::IsNullOrWhiteSpace($pf86)) {
+        $pf86 = "C:\Program Files (x86)"
+    }
+
     $searchRoots = @(
-        "${env:ProgramFiles(x86)}\Windows Kits\10\bin",
-        "${env:ProgramFiles}\Windows Kits\10\bin"
+        (Join-Path $pf86 "Windows Kits\10\bin"),
+        (Join-Path ${env:ProgramFiles} "Windows Kits\10\bin"),
+        "C:\Program Files (x86)\Windows Kits\10\bin\10.0.26100.0\x64"
     )
     foreach ($kitRoot in $searchRoots) {
         if (-not (Test-Path $kitRoot)) {
             continue
+        }
+
+        if ((Split-Path $kitRoot -Leaf) -eq "x64" -and (Test-Path (Join-Path $kitRoot "signtool.exe"))) {
+            return (Join-Path $kitRoot "signtool.exe")
         }
 
         $found = Get-ChildItem $kitRoot -Filter signtool.exe -Recurse -ErrorAction SilentlyContinue |
