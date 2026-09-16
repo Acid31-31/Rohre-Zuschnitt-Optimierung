@@ -1,4 +1,4 @@
-namespace RohreZuschnittOptimierung.Models;
+﻿namespace RohreZuschnittOptimierung.Models;
 
 public sealed class AppSettings
 {
@@ -13,11 +13,14 @@ public sealed class AppSettings
 
   public string OllamaVisionModel { get; set; } = "moondream";
 
-  /// <summary>Local | Host | Client</summary>
+  /// <summary>Local | Host | Client | SharedFolder</summary>
   public string WarehouseSyncMode { get; set; } = nameof(Models.WarehouseSyncMode.Local);
 
   public int WarehouseHubPort { get; set; } = 5088;
 
   /// <summary>z. B. http://192.168.1.10:5088 – nur im Client-Modus.</summary>
   public string WarehouseHubUrl { get; set; } = string.Empty;
+
+  /// <summary>Gemeinsamer Lager-Ordner (UNC oder Laufwerk), z. B. \\Server\Share\RohreLager</summary>
+  public string SharedWarehouseDirectory { get; set; } = string.Empty;
 }

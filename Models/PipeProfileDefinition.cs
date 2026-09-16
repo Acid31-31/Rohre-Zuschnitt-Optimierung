@@ -1,10 +1,14 @@
-namespace RohreZuschnittOptimierung.Models;
+﻿namespace RohreZuschnittOptimierung.Models;
 
 public enum PipeProfileKind
 {
   Round,
   Square,
-  Rectangular
+  Rectangular,
+  CProfile,
+  UProfile,
+  TProfile,
+  RoundBar
 }
 
 public sealed class PipeProfileDefinition
@@ -20,8 +24,28 @@ public sealed class PipeProfileDefinition
     PipeProfileKind.Round => "Rundrohr",
     PipeProfileKind.Square => "Vierkantrohr",
     PipeProfileKind.Rectangular => "Rechteckrohr",
-    _ => "Rohr"
+    PipeProfileKind.CProfile => "C-Profil",
+    PipeProfileKind.UProfile => "U-Profil",
+    PipeProfileKind.TProfile => "T-Profil",
+    PipeProfileKind.RoundBar => "Vollstange",
+    _ => "Profil"
   };
 
   public string FullLabel => $"{KindLabel} {Dimensions}";
+
+  public string CutPlanHeading
+  {
+    get
+    {
+      var typeLabel = Kind switch
+      {
+        PipeProfileKind.CProfile => "C-Profil",
+        PipeProfileKind.UProfile => "U-Profil",
+        PipeProfileKind.TProfile => "T-Profil",
+        PipeProfileKind.RoundBar => "Vollstange",
+        _ => "Rohre"
+      };
+      return string.IsNullOrWhiteSpace(Dimensions) ? typeLabel : $"{typeLabel} {Dimensions}";
+    }
+  }
 }

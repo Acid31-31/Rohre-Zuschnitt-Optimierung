@@ -13,24 +13,33 @@ public partial class OptimizePreviewWindow : Window
   public bool Confirmed { get; private set; }
 
   private readonly IReadOnlyList<OptimizePreviewItem> _items;
+  private readonly string? _combinedPdfPath;
 
   public OptimizePreviewWindow(
     string orderReference,
     string profileLabel,
     string material,
     double stockLengthMm,
-    IReadOnlyList<CutPartEntry> parts)
+    IReadOnlyList<CutPartEntry> parts,
+    string? combinedPdfPath = null)
   {
     InitializeComponent();
     Loaded += (_, _) => WindowChromeService.ApplyTheme(this, ThemeService.IsDarkMode);
 
-    _items = parts
+    _combinedPdfPath = combinedPdfPath;
+
+    var orderedParts = parts
       .OrderByDescending(part => part.LengthMm)
       .ThenBy(part => part.DrawingName, StringComparer.OrdinalIgnoreCase)
-      .Select(part => new OptimizePreviewItem
+      .ToList();
+
+    _items = orderedParts
+      .Select((part, index) => new OptimizePreviewItem
       {
         DrawingName = string.IsNullOrWhiteSpace(part.DrawingName) ? "Manuelle Eingabe" : part.DrawingName!,
+        ProfileLabel = part.ProfileDisplay,
         PdfPath = part.PdfPath,
+        PdfPageIndex = index,
         LengthMm = part.LengthMm,
         Quantity = part.Quantity,
         MiterText = MiterNotation.Format(part.MiterEnd1Deg, part.MiterEnd2Deg),
@@ -83,18 +92,22 @@ public partial class OptimizePreviewWindow : Window
     }
 
     PreviewTitleTextBlock.Text = item.DrawingName;
-    if (string.IsNullOrWhiteSpace(item.PdfPath) || !File.Exists(item.PdfPath))
+    var previewPath = _combinedPdfPath ?? item.PdfPath;
+    if (string.IsNullOrWhiteSpace(previewPath) || !File.Exists(previewPath))
     {
       PreviewImage.Source = null;
       PreviewStatusTextBlock.Text = "Keine PDF-Datei für dieses Teil hinterlegt.";
       return;
     }
 
-    if (PdfPreviewService.TryRenderFirstPage(item.PdfPath, out var image, out var error))
+    if (PdfPreviewService.TryRenderPage(previewPath, item.PdfPageIndex, out var image, out var error))
     {
       PreviewImage.Source = image;
+      var pageInfo = !string.IsNullOrWhiteSpace(_combinedPdfPath)
+        ? $"Seite {item.PdfPageIndex + 1} · "
+        : string.Empty;
       PreviewStatusTextBlock.Text =
-        item.LengthText + " · " + item.MiterText + " · " + item.StatusText;
+        pageInfo + item.LengthText + " · " + item.MiterText + " · " + item.StatusText;
     }
     else
     {
@@ -105,9 +118,16 @@ public partial class OptimizePreviewWindow : Window
 
   private void OpenPdf_Click(object sender, RoutedEventArgs e)
   {
-    if (PartsGrid.SelectedItem is not OptimizePreviewItem item
-        || string.IsNullOrWhiteSpace(item.PdfPath)
-        || !File.Exists(item.PdfPath))
+    var path = _combinedPdfPath;
+    if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+    {
+      if (PartsGrid.SelectedItem is OptimizePreviewItem item
+          && !string.IsNullOrWhiteSpace(item.PdfPath)
+          && File.Exists(item.PdfPath))
+        path = item.PdfPath;
+    }
+
+    if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
     {
       MessageBox.Show(this, "Keine PDF-Datei für die Auswahl gefunden.", "PDF öffnen",
         MessageBoxButton.OK, MessageBoxImage.Information);
@@ -116,7 +136,7 @@ public partial class OptimizePreviewWindow : Window
 
     try
     {
-      Process.Start(new ProcessStartInfo(item.PdfPath) { UseShellExecute = true });
+      Process.Start(new ProcessStartInfo(path) { UseShellExecute = true });
     }
     catch (Exception ex)
     {

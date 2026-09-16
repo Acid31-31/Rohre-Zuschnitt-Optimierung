@@ -46,7 +46,27 @@ public static class PdfDrawingAnalysisService
     RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
 
   private static readonly Regex PipePartNameRegex = new(
-    @"(?:^|[^A-ZÄÖÜ])(?:TUBE|PIPE|ROHR(?:PROFIL)?|QUADRATROHR|VIERKANTROHR|RUNDROHR|RECHTECKROHR|PROFILROHR|ROUND\s+TUBE|SQUARE\s+TUBE|RECT(?:ANGULAR)?\s+TUBE|HOLLOW\s+SECTION|RHS|SHS|CHS)(?:[^A-ZÄÖÜ]|$)",
+    @"(?:^|[^A-ZÄÖÜ0-9])(?:TUBE|PIPE|ROHR(?:PROFIL)?|QUADRATROHR|VIERKANTROHR|RUNDROHR|RECHTECKROHR|PROFILROHR|ROUND\s+TUBE|SQUARE\s+TUBE|RECT(?:ANGULAR)?\s+TUBE|HOLLOW\s+SECTION|RHS|SHS|CHS|C[\s\-]?PROFIL|U[\s\-]?PROFIL|T[\s\-]?PROFIL|C[\s\-]?PROFILE|U[\s\-]?PROFILE|T[\s\-]?PROFILE|UNP|UPE|UPN|VOLLSTANGE|VOLLMATERIAL|RUNDSTAHL|FLAT\s*BAR)(?:[^A-ZÄÖÜ0-9]|$)",
+    RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
+
+  private static readonly Regex CProfileRegex = new(
+    @"(?:C[\s\-/]?Profil(?:stahl)?|C[\s\-/]?Profile|C[\s\-/]?Kanal|C[\s\-/]?Schiene)\s*[:=]?\s*(?<a>\d+(?:[.,]\d+)?)\s*[x×*]\s*(?<b>\d+(?:[.,]\d+)?)\s*[x×*]\s*(?<t>\d+(?:[.,]\d+)?)",
+    RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
+
+  private static readonly Regex UProfileRegex = new(
+    @"(?:U[\s\-/]?Profil(?:stahl)?|U[\s\-/]?Profile|U[\s\-/]?Kanal|UNP|UPE|UPN)\s*[:=]?\s*(?<a>\d+(?:[.,]\d+)?)\s*[x×*]?\s*(?<b>\d+(?:[.,]\d+)?)?\s*[x×*]?\s*(?<t>\d+(?:[.,]\d+)?)?",
+    RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
+
+  private static readonly Regex TProfileRegex = new(
+    @"(?:T[\s\-/]?Profil(?:stahl)?|T[\s\-/]?Profile|T[\s\-/]?Stahl)\s*[:=]?\s*(?<a>\d+(?:[.,]\d+)?)\s*[x×*]\s*(?<b>\d+(?:[.,]\d+)?)\s*[x×*]\s*(?<t>\d+(?:[.,]\d+)?)",
+    RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
+
+  private static readonly Regex RoundBarRegex = new(
+    @"(?:Vollstange|Vollmaterial|Rundstahl|Solid\s*bar)\s*[:=]?\s*(?:Ø|ø|D)?\s*(?<d>\d+(?:[.,]\d+)?)\s*(?:mm)?",
+    RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
+
+  private static readonly Regex CuttableProfileKeywordRegex = new(
+    @"\b(?:C[\s\-]?Profil|U[\s\-]?Profil|T[\s\-]?Profil|UNP|UPE|UPN|Vollstange|Vollmaterial|Rundstahl|Quadrat(?:rohr)?|Vierkant|Rechteck(?:rohr)?|Rundrohr|Rohrprofil)\b",
     RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
 
   private static readonly Regex SheetPartNameRegex = new(
@@ -77,14 +97,20 @@ public static class PdfDrawingAnalysisService
     var lengthSource = AnalysisValueSource.None;
     var miterSource = AnalysisValueSource.None;
 
-    if (kind == DrawingPartKind.Pipe)
+    var searchText = normalized + " " + string.Join(" ", pageWords) + " " + partName + " " + fileName;
+    if (kind != DrawingPartKind.SheetMetal)
     {
-      var searchText = normalized + " " + string.Join(" ", pageWords);
       profile = TryFindProfile(searchText, fileName, allowGenericMatch: true);
-      lengthMm = TryFindLengthMm(searchText, pdfPath, pageWords, profile, out lengthSource);
-      (leftDeg, rightDeg, angleNote) = TryFindMiterAngles(searchText);
-      if (leftDeg is > 0.1 || rightDeg is > 0.1)
-        miterSource = AnalysisValueSource.Rules;
+      if (kind == DrawingPartKind.Pipe
+          || profile is not null
+          || CuttableProfileKeywordRegex.IsMatch(searchText))
+      {
+        kind = DrawingPartKind.Pipe;
+        lengthMm = TryFindLengthMm(searchText, pdfPath, pageWords, profile, out lengthSource);
+        (leftDeg, rightDeg, angleNote) = TryFindMiterAngles(searchText);
+        if (leftDeg is > 0.1 || rightDeg is > 0.1)
+          miterSource = AnalysisValueSource.Rules;
+      }
     }
 
     var material = TryFindMaterial(normalized + " " + fileName + " " + partName);
@@ -259,16 +285,86 @@ public static class PdfDrawingAnalysisService
         return profile;
     }
 
+    foreach (Match match in CProfileRegex.Matches(text + " " + fileName))
+    {
+      var profile = PipeStockCatalog.TryMatch(
+        PipeProfileKind.CProfile,
+        ParseNumber(match.Groups["a"].Value),
+        ParseNumber(match.Groups["b"].Value),
+        ParseNumber(match.Groups["t"].Value));
+      if (profile is not null)
+        return profile;
+    }
+
+    foreach (Match match in TProfileRegex.Matches(text + " " + fileName))
+    {
+      var profile = PipeStockCatalog.TryMatch(
+        PipeProfileKind.TProfile,
+        ParseNumber(match.Groups["a"].Value),
+        ParseNumber(match.Groups["b"].Value),
+        ParseNumber(match.Groups["t"].Value));
+      if (profile is not null)
+        return profile;
+    }
+
+    foreach (Match match in UProfileRegex.Matches(text + " " + fileName))
+    {
+      var a = ParseNumber(match.Groups["a"].Value);
+      var bGroup = match.Groups["b"];
+      var tGroup = match.Groups["t"];
+      double? b = bGroup.Success && !string.IsNullOrWhiteSpace(bGroup.Value) ? ParseNumber(bGroup.Value) : null;
+      double? t = tGroup.Success && !string.IsNullOrWhiteSpace(tGroup.Value) ? ParseNumber(tGroup.Value) : null;
+      if (b is null || t is null)
+        continue;
+      var profile = PipeStockCatalog.TryMatch(PipeProfileKind.UProfile, a, b, t.Value);
+      if (profile is not null)
+        return profile;
+    }
+
+    foreach (Match match in RoundBarRegex.Matches(text + " " + fileName))
+    {
+      var profile = PipeStockCatalog.TryMatch(
+        PipeProfileKind.RoundBar,
+        ParseNumber(match.Groups["d"].Value),
+        null,
+        0);
+      if (profile is not null)
+        return profile;
+    }
+
     if (!allowGenericMatch)
       return null;
 
-    foreach (Match match in GenericTripleRegex.Matches(text + " " + fileName))
+    var haystack = text + " " + fileName;
+    var preferC = Regex.IsMatch(haystack, @"\bC[\s\-/]?Profil", RegexOptions.IgnoreCase);
+    var preferU = Regex.IsMatch(haystack, @"\b(?:U[\s\-/]?Profil|UNP|UPE|UPN)\b", RegexOptions.IgnoreCase);
+    var preferT = Regex.IsMatch(haystack, @"\bT[\s\-/]?Profil", RegexOptions.IgnoreCase);
+    var preferBar = Regex.IsMatch(haystack, @"\b(?:Vollstange|Vollmaterial|Rundstahl)\b", RegexOptions.IgnoreCase);
+
+    foreach (Match match in GenericTripleRegex.Matches(haystack))
     {
       var a = ParseNumber(match.Groups["a"].Value);
       var b = ParseNumber(match.Groups["b"].Value);
       var t = ParseNumber(match.Groups["t"].Value);
       if (!IsPlausibleSection(a) || !IsPlausibleSection(b) || !IsPlausibleThickness(t))
         continue;
+
+      // Bei klarem Profiltyp zuerst den Katalog dieses Typs.
+      if (preferC)
+      {
+        var cProf = PipeStockCatalog.TryMatch(PipeProfileKind.CProfile, a, b, t);
+        if (cProf is not null) return cProf;
+      }
+      if (preferU)
+      {
+        var uProf = PipeStockCatalog.TryMatch(PipeProfileKind.UProfile, a, b, t);
+        if (uProf is not null) return uProf;
+      }
+      if (preferT)
+      {
+        var tProf = PipeStockCatalog.TryMatch(PipeProfileKind.TProfile, a, b, t);
+        if (tProf is not null) return tProf;
+      }
 
       if (Math.Abs(a - b) < 0.15)
       {
@@ -280,13 +376,34 @@ public static class PdfDrawingAnalysisService
       var rect = PipeStockCatalog.TryMatch(PipeProfileKind.Rectangular, a, b, t);
       if (rect is not null)
         return rect;
+
+      // Maße nur in C/U/T-Katalog: auch ohne Keyword übernehmen.
+      var cFallback = PipeStockCatalog.TryMatch(PipeProfileKind.CProfile, a, b, t);
+      if (cFallback is not null)
+        return cFallback;
+      var uFallback = PipeStockCatalog.TryMatch(PipeProfileKind.UProfile, a, b, t);
+      if (uFallback is not null)
+        return uFallback;
+      var tFallback = PipeStockCatalog.TryMatch(PipeProfileKind.TProfile, a, b, t);
+      if (tFallback is not null)
+        return tFallback;
     }
 
-    foreach (Match match in GenericDoubleRegex.Matches(text + " " + fileName))
+    foreach (Match match in GenericDoubleRegex.Matches(haystack))
     {
       var d = ParseNumber(match.Groups["a"].Value);
       var t = ParseNumber(match.Groups["t"].Value);
-      if (!IsPlausibleSection(d) || !IsPlausibleThickness(t))
+      if (!IsPlausibleSection(d))
+        continue;
+
+      if (preferBar || t < 0.4)
+      {
+        var bar = PipeStockCatalog.TryMatch(PipeProfileKind.RoundBar, d, null, 0);
+        if (bar is not null)
+          return bar;
+      }
+
+      if (!IsPlausibleThickness(t))
         continue;
 
       var round = PipeStockCatalog.TryMatch(PipeProfileKind.Round, d, null, t);

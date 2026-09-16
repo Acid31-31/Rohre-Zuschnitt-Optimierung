@@ -4,7 +4,7 @@ function Resolve-CodeSigningCert {
         [string]$Root
     )
 
-    $siblingDokRoot = Join-Path (Split-Path $Root -Parent) "PDF Sortieren"
+    $siblingDokRoot = Join-Path (Split-Path $Root -Parent) "DOK-V01-Optimierung"
 
     $pfxCandidates = @(
         (Join-Path $Root "cert\DOK-CodeSigning.pfx"),

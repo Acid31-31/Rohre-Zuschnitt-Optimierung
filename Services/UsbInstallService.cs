@@ -22,8 +22,7 @@ internal static class UsbInstallService
 
 
 
-    var fileName = ApplicationHostPaths.GetHostExecutableFileName();
-
+    var fileName = Path.GetFileName(Environment.ProcessPath ?? string.Empty);
     return fileName.Equals(AppInfo.UsbLauncherFileName, StringComparison.OrdinalIgnoreCase);
 
   }
@@ -40,8 +39,7 @@ internal static class UsbInstallService
 
 
 
-    var fileName = ApplicationHostPaths.GetHostExecutableFileName();
-
+    var fileName = Path.GetFileName(Environment.ProcessPath ?? string.Empty);
     return fileName.Equals(AppInfo.UsbUninstallerFileName, StringComparison.OrdinalIgnoreCase);
 
   }

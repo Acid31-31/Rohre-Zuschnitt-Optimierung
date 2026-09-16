@@ -11,14 +11,16 @@ internal static class ApplicationHostPaths
   public static string? GetHostExecutablePath()
   {
     var processPath = Environment.ProcessPath;
-    if (!string.IsNullOrWhiteSpace(processPath) && File.Exists(processPath))
+    if (!string.IsNullOrWhiteSpace(processPath)
+        && File.Exists(processPath)
+        && !IsDotNetHost(processPath))
       return processPath;
 
     var baseDir = AppDomain.CurrentDomain.BaseDirectory;
     foreach (var candidate in new[]
              {
-               AppInfo.UsbLauncherFileName,
                AppInfo.ExeFileName,
+               AppInfo.UsbLauncherFileName,
                AppInfo.UsbUninstallerFileName
              })
     {
@@ -49,5 +51,12 @@ internal static class ApplicationHostPaths
 
     return AppDomain.CurrentDomain.BaseDirectory
       .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+  }
+
+  private static bool IsDotNetHost(string processPath)
+  {
+    var name = Path.GetFileName(processPath);
+    return name.Equals("dotnet.exe", StringComparison.OrdinalIgnoreCase)
+           || name.Equals("dotnet", StringComparison.OrdinalIgnoreCase);
   }
 }

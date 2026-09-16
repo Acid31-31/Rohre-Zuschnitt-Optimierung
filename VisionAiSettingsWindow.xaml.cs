@@ -21,7 +21,7 @@ public partial class VisionAiSettingsWindow : Window
     LocalAiEnabledCheckBox.IsChecked = appSettings.LocalAiEnabled;
     LocalAiStatusTextBlock.Text = BundledAiRuntime.IsBundled
       ? "KI-Paket im Programmordner gefunden (AI\\)."
-      : "Hinweis: KI-Paket (AI\\) fehlt – USB-Version R18+ verwenden.";
+      : "KI separat installieren: Ordner AI\\ neben die EXE legen (nicht im USB-Update enthalten).";
   }
 
   private async void ProbeLocalAi_Click(object sender, RoutedEventArgs e)

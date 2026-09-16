@@ -171,6 +171,9 @@ public static class PipeOrderService
   private static CutPartEntry ClonePart(CutPartEntry part) =>
     new()
     {
+      ProfileId = part.ProfileId,
+      Material = part.Material,
+      ProfileLabel = part.ProfileLabel,
       DrawingName = part.DrawingName,
       PdfPath = part.PdfPath,
       LengthMm = part.LengthMm,

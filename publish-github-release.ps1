@@ -3,7 +3,9 @@ param(
   [string]$Configuration = "Release",
   [switch]$SkipBuild,
   [switch]$SkipGh,
-  [switch]$Draft
+  [switch]$Draft,
+  [switch]$IncludeAi,
+  [switch]$UseReleaseVersion
 )
 
 $ErrorActionPreference = "Stop"
@@ -20,12 +22,13 @@ $assetName = $buildInfo.ReleaseZipName
 $projectFile = Join-Path $root "RohreZuschnittOptimierung.csproj"
 $releaseRoot = Join-Path $root "Release-Version"
 $releaseFolder = Join-Path $releaseRoot $buildInfo.ProductFolder
+$usbDeployRoot = Join-Path 'Z:\Rohre-Zuschnitt' $buildInfo.ProductFolder
 
 if ([string]::IsNullOrWhiteSpace($Tag)) {
   $Tag = $buildInfo.VersionTag
 }
 
-if (-not $SkipBuild) {
+if (-not $SkipBuild -and -not $UseReleaseVersion) {
   Write-Host "Baue $Configuration ($($buildInfo.RevisionLabel))..."
   dotnet build $projectFile -c $Configuration
   if ($LASTEXITCODE -ne 0) { throw "Build fehlgeschlagen." }
@@ -43,27 +46,50 @@ if (-not $SkipBuild) {
   }
 }
 
-$releaseDir = Get-ChildItem (Join-Path $root "bin\$Configuration") -Directory -ErrorAction SilentlyContinue |
-  Where-Object { $_.Name -like "net8.0-windows*" -and (Test-Path (Join-Path $_.FullName "$productName.exe")) } |
-  Sort-Object LastWriteTime -Descending |
-  Select-Object -First 1 -ExpandProperty FullName
-if ([string]::IsNullOrWhiteSpace($releaseDir)) {
-  throw "Release-Ausgabeordner nicht gefunden unter bin\$Configuration\net8.0-windows*"
+$releaseDir = $null
+if ($UseReleaseVersion) {
+  if (-not (Test-Path (Join-Path $usbDeployRoot "$productName.exe"))) {
+    throw "Self-contained USB-Stand fehlt: $usbDeployRoot. Zuerst create-usb-version.ps1 ausfuehren."
+  }
+  $releaseDir = $usbDeployRoot
+  Write-Host "Nutze USB-Stand: $releaseDir"
 }
+else {
+  $releaseDir = Get-ChildItem (Join-Path $root "bin\$Configuration") -Directory -ErrorAction SilentlyContinue |
+    Where-Object { $_.Name -like "net8.0-windows*" -and (Test-Path (Join-Path $_.FullName "$productName.exe")) } |
+    Sort-Object LastWriteTime -Descending |
+    Select-Object -First 1 -ExpandProperty FullName
+  if ([string]::IsNullOrWhiteSpace($releaseDir)) {
+    throw "Release-Ausgabeordner nicht gefunden unter bin\$Configuration\net8.0-windows*"
+  }
+}
+
 $exePath = Join-Path $releaseDir "$productName.exe"
 Write-Host "Release-Ordner: $releaseDir"
 if (-not (Test-Path $exePath)) {
   throw "Release-EXE nicht gefunden: $exePath"
 }
 
+if (-not (Test-Path (Join-Path $releaseDir "hostfxr.dll"))) {
+  throw "Release ist nicht standalone (hostfxr.dll fehlt). Zuerst create-usb-version.ps1 ausfuehren."
+}
+
 $staging = Join-Path $env:TEMP "RohreZuschnitt-release-staging"
 if (Test-Path $staging) { Remove-Item $staging -Recurse -Force }
 New-Item -ItemType Directory -Path $staging | Out-Null
 
-Get-ChildItem $releaseDir -File | Where-Object {
-  $_.Extension -in @('.exe', '.dll', '.config', '.json', '.cer')
-} | ForEach-Object {
-  Copy-Item $_.FullName -Destination (Join-Path $staging $_.Name) -Force
+if ($UseReleaseVersion) {
+  & robocopy $releaseDir $staging /E /R:2 /W:2 /NFL /NDL /NJH /NJS /NP /XF "*.pdb" /XD Daten | Out-Null
+  if ($LASTEXITCODE -ge 8) {
+    throw "Staging-Kopie fehlgeschlagen (robocopy exit $LASTEXITCODE)"
+  }
+}
+else {
+  Get-ChildItem $releaseDir -File | Where-Object {
+    $_.Extension -in @('.exe', '.dll', '.config', '.json', '.cer')
+  } | ForEach-Object {
+    Copy-Item $_.FullName -Destination (Join-Path $staging $_.Name) -Force
+  }
 }
 
 $cerSource = Join-Path $releaseDir "CodeSigning.cer"
@@ -83,33 +109,43 @@ if ($cerSource -and (Test-Path $cerSource)) {
 }
 
 if (-not (Test-Path $releaseRoot)) { New-Item -ItemType Directory -Path $releaseRoot | Out-Null }
-if (Test-Path $releaseFolder) { Remove-Item $releaseFolder -Recurse -Force }
-New-Item -ItemType Directory -Path $releaseFolder -Force | Out-Null
-Copy-Item (Join-Path $staging "*") $releaseFolder -Recurse -Force
+if (-not $UseReleaseVersion) {
+  if (Test-Path $releaseFolder) { Remove-Item $releaseFolder -Recurse -Force }
+  New-Item -ItemType Directory -Path $releaseFolder -Force | Out-Null
+  Copy-Item (Join-Path $staging "*") $releaseFolder -Recurse -Force
+}
 
-$vendorAi = Join-Path $root "vendor\AI"
-if (Test-Path (Join-Path $vendorAi "ollama\ollama.exe")) {
-  Write-Host "Kopiere mitgelieferte Vision-KI (AI\)..."
-  $aiDest = Join-Path $releaseFolder "AI"
-  if (Test-Path $aiDest) { Remove-Item $aiDest -Recurse -Force }
-  New-Item -ItemType Directory -Path $aiDest -Force | Out-Null
-  & robocopy $vendorAi $aiDest /E /R:2 /W:2 /NFL /NDL /NJH /NJS /NP /MT:8 | Out-Null
-  if ($LASTEXITCODE -ge 8) {
-    throw "Vision-KI Kopie fehlgeschlagen: $aiDest (robocopy exit $LASTEXITCODE)"
+if ($IncludeAi) {
+  $vendorAi = Join-Path $root "vendor\AI"
+  if (Test-Path (Join-Path $vendorAi "ollama\ollama.exe")) {
+    Write-Host "Kopiere Vision-KI (AI\) - optional, gross..."
+    $aiDest = Join-Path $releaseFolder "AI"
+    if (Test-Path $aiDest) { Remove-Item $aiDest -Recurse -Force }
+    New-Item -ItemType Directory -Path $aiDest -Force | Out-Null
+    & robocopy $vendorAi $aiDest /E /R:2 /W:2 /NFL /NDL /NJH /NJS /NP /MT:8 | Out-Null
+    if ($LASTEXITCODE -ge 8) {
+      throw "Vision-KI Kopie fehlgeschlagen: $aiDest (robocopy exit $LASTEXITCODE)"
+    }
+    Get-ChildItem (Join-Path $aiDest "ollama\lib\ollama") -Directory -ErrorAction SilentlyContinue |
+      Where-Object { $_.Name -like "cuda*" } |
+      ForEach-Object { Remove-Item $_.FullName -Recurse -Force -ErrorAction SilentlyContinue }
+    $aiStaging = Join-Path $staging "AI"
+    if (Test-Path $aiStaging) { Remove-Item $aiStaging -Recurse -Force }
+    New-Item -ItemType Directory -Path $aiStaging -Force | Out-Null
+    & robocopy $aiDest $aiStaging /E /R:2 /W:2 /NFL /NDL /NJH /NJS /NP /MT:8 | Out-Null
+    if ($LASTEXITCODE -ge 8) {
+      throw "Vision-KI Staging-Kopie fehlgeschlagen (robocopy exit $LASTEXITCODE)"
+    }
   }
-  Get-ChildItem (Join-Path $aiDest "ollama\lib\ollama") -Directory -ErrorAction SilentlyContinue |
-    Where-Object { $_.Name -like "cuda*" } |
-    ForEach-Object { Remove-Item $_.FullName -Recurse -Force -ErrorAction SilentlyContinue }
-  $aiStaging = Join-Path $staging "AI"
-  if (Test-Path $aiStaging) { Remove-Item $aiStaging -Recurse -Force }
-  New-Item -ItemType Directory -Path $aiStaging -Force | Out-Null
-  & robocopy $aiDest $aiStaging /E /R:2 /W:2 /NFL /NDL /NJH /NJS /NP /MT:8 | Out-Null
-  if ($LASTEXITCODE -ge 8) {
-    throw "Vision-KI Staging-Kopie fehlgeschlagen (robocopy exit $LASTEXITCODE)"
+  else {
+    Write-Warning "vendor\AI fehlt - Release ohne Vision-KI-Paket."
   }
 }
 else {
-  Write-Warning "vendor\AI fehlt - Release ohne Vision-KI-Paket."
+  Write-Host "Vision-KI wird NICHT mitgepackt (separat installieren)."
+  foreach ($aiPath in @((Join-Path $releaseFolder "AI"), (Join-Path $staging "AI"))) {
+    if (Test-Path $aiPath) { Remove-Item $aiPath -Recurse -Force -ErrorAction SilentlyContinue }
+  }
 }
 
 $zipPath = Join-Path $releaseRoot $assetName

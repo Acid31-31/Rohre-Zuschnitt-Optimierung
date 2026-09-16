@@ -47,15 +47,18 @@ public partial class UpdateAvailableWindow : Window
     UpdateProgressBar.Value = 0;
     PercentTextBlock.Text = "0 %";
     StatusTextBlock.Text = "Update wird vorbereitet…";
+    RemainingTimeTextBlock.Text = "Restlaufzeit wird berechnet…";
 
     try
     {
-      var progress = new Progress<UpdateProgressInfo>(info =>
+      var presenter = new UpdateProgressPresenter((percent, message, remaining) =>
       {
-        UpdateProgressBar.Value = info.Percent;
-        PercentTextBlock.Text = info.Percent + " %";
-        StatusTextBlock.Text = info.Message;
+        UpdateProgressBar.Value = percent;
+        PercentTextBlock.Text = percent + " %";
+        StatusTextBlock.Text = message;
+        RemainingTimeTextBlock.Text = remaining;
       });
+      var progress = new Progress<UpdateProgressInfo>(presenter.Report);
 
       var stagedRoot = await GitHubUpdateService.DownloadAndStageUpdateAsync(_update, progress);
       StatusTextBlock.Text = "Installation wird gestartet…";

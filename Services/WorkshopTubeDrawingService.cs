@@ -17,7 +17,10 @@ internal static class WorkshopTubeDrawingService
     string? orderReference,
     string? sourceNote,
     string? assemblyPosition = null,
-    string? assemblyFileName = null)
+    string? assemblyFileName = null,
+    double miterEnd1Deg = 0,
+    double miterEnd2Deg = 0,
+    string? subtitle = null)
   {
     Directory.CreateDirectory(outputDirectory);
     PdfFontBootstrap.EnsureInitialized();
@@ -44,13 +47,17 @@ internal static class WorkshopTubeDrawingService
 
     gfx.DrawRectangle(new XPen(XColors.Black, 1.2), margin, margin, width, page.Height - margin * 2);
     gfx.DrawString("WERKSTATTZEICHNUNG", fontTitle, XBrushes.Black, new XPoint(margin + 12, margin + 28));
-    gfx.DrawString("Rohre Zuschnitt Optimierung – erzeugt aus Bestellung (keine Hersteller-PDF)", fontSmall, XBrushes.DimGray, new XPoint(margin + 12, margin + 46));
+    gfx.DrawString(
+      subtitle ?? "Rohre Zuschnitt Optimierung – automatisch erzeugt (keine Hersteller-PDF)",
+      fontSmall,
+      XBrushes.DimGray,
+      new XPoint(margin + 12, margin + 46));
 
     var viewTop = margin + 70;
     var viewHeight = 250;
     gfx.DrawRectangle(new XPen(XColors.Gray, 0.6), margin + 16, viewTop, width - 32, viewHeight);
 
-    DrawTubeView(gfx, margin + 16, viewTop, width - 32, viewHeight, profile, lengthMm, fontDim, fontSmall);
+    DrawTubeView(gfx, margin + 16, viewTop, width - 32, viewHeight, profile, lengthMm, miterEnd1Deg, miterEnd2Deg, fontDim, fontSmall);
 
     var boxTop = viewTop + viewHeight + 18;
     var col = (width - 24) / 2;
@@ -62,10 +69,17 @@ internal static class WorkshopTubeDrawingService
     DrawField(gfx, margin + 20 + col, boxTop + 52, col, 48, "ROHRLÄNGE", lengthMm > 0.1 ? FormatMm(lengthMm) : "siehe Baugruppe", fontLabel, fontValue);
 
     DrawField(gfx, margin + 12, boxTop + 104, col, 48, "STÜCKZAHL", quantity.ToString("0"), fontLabel, fontValue);
-    DrawField(gfx, margin + 20 + col, boxTop + 104, col, 48, "AUFTRAG", string.IsNullOrWhiteSpace(orderReference) ? "—" : TrimValue(orderReference, 28), fontLabel, fontValue);
+    DrawField(gfx, margin + 20 + col, boxTop + 104, col, 48, "GEHRUNG", MiterNotation.Format(miterEnd1Deg, miterEnd2Deg), fontLabel, fontValue);
 
-    DrawField(gfx, margin + 12, boxTop + 156, col, 48, "POSITION (Baugruppe)", string.IsNullOrWhiteSpace(assemblyPosition) ? "—" : assemblyPosition, fontLabel, fontValue);
-    DrawField(gfx, margin + 20 + col, boxTop + 156, col, 48, "HAUPTZEICHNUNG", string.IsNullOrWhiteSpace(assemblyFileName) ? "—" : TrimValue(assemblyFileName, 28), fontLabel, fontValue);
+    DrawField(gfx, margin + 12, boxTop + 156, col, 48, "AUFTRAG", string.IsNullOrWhiteSpace(orderReference) ? "—" : TrimValue(orderReference, 28), fontLabel, fontValue);
+    if (!string.IsNullOrWhiteSpace(assemblyFileName))
+    {
+      DrawField(gfx, margin + 20 + col, boxTop + 156, col, 48, "HAUPTZEICHNUNG", TrimValue(assemblyFileName, 28), fontLabel, fontValue);
+    }
+    else
+    {
+      DrawField(gfx, margin + 20 + col, boxTop + 156, col, 48, "POSITION (Baugruppe)", string.IsNullOrWhiteSpace(assemblyPosition) ? "—" : assemblyPosition, fontLabel, fontValue);
+    }
 
     var noteTop = boxTop + 216;
     gfx.DrawString("HINWEIS", fontLabel, XBrushes.DimGray, new XPoint(margin + 12, noteTop));
@@ -80,6 +94,34 @@ internal static class WorkshopTubeDrawingService
     return filePath;
   }
 
+  public static string EnsureDrawingForPart(
+    CutPartEntry part,
+    string outputDirectory,
+    PipeProfileDefinition? profile,
+    string? material,
+    string? orderReference,
+    ref int sequence)
+  {
+    if (!string.IsNullOrWhiteSpace(part.PdfPath) && File.Exists(part.PdfPath))
+      return part.PdfPath;
+
+    var drawingNumber = TechnicalTubeDrawingRenderer.BuildManualDrawingNumber(orderReference, sequence);
+    sequence++;
+
+    var path = ManualTubeDrawingService.Create(
+      outputDirectory,
+      drawingNumber,
+      part,
+      profile,
+      material,
+      orderReference);
+
+    part.PdfPath = path;
+    part.DrawingName = drawingNumber;
+
+    return path;
+  }
+
   private static void DrawTubeView(
     XGraphics gfx,
     double x,
@@ -88,17 +130,33 @@ internal static class WorkshopTubeDrawingService
     double h,
     PipeProfileDefinition? profile,
     double lengthMm,
+    double miterEnd1Deg,
+    double miterEnd2Deg,
     XFont fontDim,
     XFont fontSmall)
   {
-    var tubeHeight = 36;
+    var tubeHeight = 36.0;
     var tubeWidth = Math.Min(w - 80, 420);
     var tubeX = x + (w - tubeWidth) / 2;
     var tubeY = y + h / 2 - tubeHeight / 2 - 10;
 
-    gfx.DrawRectangle(new XPen(XColors.Black, 1.6), XBrushes.White, tubeX, tubeY, tubeWidth, tubeHeight);
-    gfx.DrawLine(new XPen(XColors.Black, 0.8), tubeX, tubeY + 8, tubeX + tubeWidth, tubeY + 8);
+    var leftInset = MiterInset(tubeHeight, miterEnd1Deg);
+    var rightInset = MiterInset(tubeHeight, miterEnd2Deg);
+    var outline = new[]
+    {
+      new XPoint(tubeX + leftInset, tubeY),
+      new XPoint(tubeX + tubeWidth - rightInset, tubeY),
+      new XPoint(tubeX + tubeWidth, tubeY + tubeHeight),
+      new XPoint(tubeX, tubeY + tubeHeight)
+    };
+    gfx.DrawPolygon(new XPen(XColors.Black, 1.6), XBrushes.White, outline, XFillMode.Alternate);
+    gfx.DrawLine(new XPen(XColors.Black, 0.8), tubeX + leftInset, tubeY + 8, tubeX + tubeWidth - rightInset, tubeY + 8);
     gfx.DrawLine(new XPen(XColors.Black, 0.8), tubeX, tubeY + tubeHeight - 8, tubeX + tubeWidth, tubeY + tubeHeight - 8);
+
+    if (miterEnd1Deg > 0.1)
+      gfx.DrawString($"A {miterEnd1Deg:0}°", fontSmall, XBrushes.Black, new XPoint(tubeX + 4, tubeY + tubeHeight + 2));
+    if (miterEnd2Deg > 0.1)
+      gfx.DrawString($"B {miterEnd2Deg:0}°", fontSmall, XBrushes.Black, new XPoint(tubeX + tubeWidth - 34, tubeY + tubeHeight + 2));
 
     var dimY = tubeY + tubeHeight + 28;
     gfx.DrawLine(new XPen(XColors.Black, 0.7), tubeX, dimY, tubeX + tubeWidth, dimY);
@@ -113,6 +171,15 @@ internal static class WorkshopTubeDrawingService
       XBrushes.Black,
       new XRect(tubeX, tubeY - 22, tubeWidth, 16),
       XStringFormats.Center);
+  }
+
+  private static double MiterInset(double tubeHeight, double miterDeg)
+  {
+    if (miterDeg <= 0.1)
+      return 0;
+
+    var radians = miterDeg * Math.PI / 180.0;
+    return Math.Min(tubeHeight * 0.45, tubeHeight * Math.Tan(radians) * 0.35);
   }
 
   private static void DrawField(

@@ -23,8 +23,11 @@ internal static class DesktopShortcutService
         return false;
       }
 
-      var baseDir = Path.GetDirectoryName(targetExePath);
+      var baseDir = Path.GetDirectoryName(targetExePath) ?? string.Empty;
       var shortcutPath = Path.Combine(desktopPath, AppInfo.ShortcutFileName);
+      var iconPath = Path.Combine(baseDir, "AppIcon.ico");
+      if (!File.Exists(iconPath))
+        iconPath = targetExePath;
 
       var wshShellType = Type.GetTypeFromProgID("WScript.Shell");
       if (wshShellType is null)
@@ -37,7 +40,9 @@ internal static class DesktopShortcutService
       dynamic shortcut = wshShell.CreateShortcut(shortcutPath);
       shortcut.TargetPath = targetExePath;
       shortcut.WorkingDirectory = baseDir;
-      shortcut.IconLocation = targetExePath + ",0";
+      shortcut.IconLocation = File.Exists(iconPath) && iconPath.EndsWith(".ico", StringComparison.OrdinalIgnoreCase)
+        ? iconPath
+        : targetExePath + ",0";
       shortcut.Description = AppInfo.ProductName + " starten";
       shortcut.Save();
 
@@ -58,20 +63,14 @@ internal static class DesktopShortcutService
   }
 
   /// <summary>
-  /// Erneuert die Desktop-Verknüpfung, wenn sie fehlt oder auf eine verschwundene EXE zeigt.
+  /// Legt die Desktop-Verknüpfung nur an, wenn sie fehlt oder auf eine nicht existierende EXE zeigt.
+  /// Eine vorhandene, gültige Verknüpfung (z. B. Festinstallation) wird nicht überschrieben.
   /// </summary>
   public static bool TryRepairToCurrentExe(out string message)
   {
     message = string.Empty;
     try
     {
-      var exePath = AppInfo.GetInstalledExePath();
-      if (string.IsNullOrWhiteSpace(exePath) || !File.Exists(exePath))
-      {
-        message = "Aktuelle Programmdatei nicht gefunden.";
-        return false;
-      }
-
       var desktopPath = ResolveDesktopPath();
       if (string.IsNullOrWhiteSpace(desktopPath))
       {
@@ -80,13 +79,19 @@ internal static class DesktopShortcutService
       }
 
       var shortcutPath = Path.Combine(desktopPath, AppInfo.ShortcutFileName);
-      if (File.Exists(shortcutPath) && TryReadTargetPath(shortcutPath, out var currentTarget)
-          && !string.IsNullOrWhiteSpace(currentTarget)
-          && File.Exists(currentTarget)
-          && string.Equals(Path.GetFullPath(currentTarget), Path.GetFullPath(exePath), StringComparison.OrdinalIgnoreCase))
+      if (File.Exists(shortcutPath)
+          && TryReadTargetPath(shortcutPath, out var existingTarget)
+          && File.Exists(existingTarget))
       {
-        message = "Verknuepfung ist aktuell.";
+        message = "Vorhandene Desktop-Verknuepfung belassen.";
         return true;
+      }
+
+      var exePath = AppInfo.GetInstalledExePath();
+      if (string.IsNullOrWhiteSpace(exePath) || !File.Exists(exePath))
+      {
+        message = "Aktuelle Programmdatei nicht gefunden.";
+        return false;
       }
 
       return TryCreate(exePath, out message);

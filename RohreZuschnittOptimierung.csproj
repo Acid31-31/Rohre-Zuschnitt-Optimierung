@@ -11,10 +11,14 @@
     <ApplicationIcon>Assets\AppIcon.ico</ApplicationIcon>
     <AssemblyTitle>Rohre Zuschnitt Optimierung</AssemblyTitle>
     <Product>Rohre Zuschnitt Optimierung</Product>
-    <Version>1.0.22</Version>
-    <AssemblyVersion>1.0.0.22</AssemblyVersion>
-    <FileVersion>1.0.0.22</FileVersion>
+    <Version>1.0.37</Version>
+    <AssemblyVersion>1.0.0.37</AssemblyVersion>
+    <FileVersion>1.0.0.37</FileVersion>
   </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="DrawingPreviewTool" />
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Docnet.Core" Version="2.6.0" />
@@ -33,6 +37,10 @@
   <ItemGroup>
     <Resource Include="Assets\AppIcon.ico" />
     <Resource Include="Assets\AppLogo.png" />
+    <None Include="Assets\AppIcon.ico" CopyToOutputDirectory="PreserveNewest" Link="AppIcon.ico" />
+    <None Include="Assets\AppIcon.png" CopyToOutputDirectory="PreserveNewest" Link="AppIcon.png" />
+    <None Include="Assets\DrawingLogo.png" CopyToOutputDirectory="PreserveNewest" Link="DrawingLogo.png" Condition="Exists('Assets\DrawingLogo.png')" />
+    <EmbeddedResource Include="Assets\DrawingLogo.png" LogicalName="DrawingLogo.png" Condition="Exists('Assets\DrawingLogo.png')" />
     <None Include="LICENSE_DE.txt" CopyToOutputDirectory="PreserveNewest" />
     <None Include="CodeSigning.cer" CopyToOutputDirectory="PreserveNewest" Condition="Exists('CodeSigning.cer')" />
     <None Include="native\pdfium.dll" CopyToOutputDirectory="PreserveNewest" Link="pdfium.dll" Condition="Exists('native\pdfium.dll')" />

@@ -30,6 +30,7 @@ public partial class MainWindow : Window
   private string? _lastOrderReference;
   private readonly TrialLicenseStatus _trialStatus;
   private readonly DispatcherTimer _stopwatchTimer;
+  private readonly DispatcherTimer _presenceTimer;
   private readonly Stopwatch _operationStopwatch = new();
   private TimeSpan _projectProcessingElapsed = TimeSpan.Zero;
   private bool _isProcessing;
@@ -52,30 +53,68 @@ public partial class MainWindow : Window
     _stopwatchTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(200) };
     _stopwatchTimer.Tick += (_, _) => UpdateStopwatchDisplay();
 
+    _presenceTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(4) };
+    _presenceTimer.Tick += (_, _) => RefreshNetworkPresence();
+
     SourceInitialized += (_, _) =>
       WindowChromeService.ApplyTheme(this, ThemeService.IsDarkMode);
     Loaded += async (_, _) =>
     {
       WindowChromeService.ApplyTheme(this, ThemeService.IsDarkMode);
       UpdateTitleBarMaximizeGlyph();
-      DesktopShortcutService.TryRepairToCurrentExe(out _);
-      InitializeWarehouse();
       PipeWarehouseStore.ExternalChanged += OnWarehouseExternalChanged;
+      PipeWarehouseStore.PresenceChanged += OnPresenceChanged;
       Activated += MainWindow_Activated;
+      _presenceTimer.Start();
       Closed += (_, _) =>
       {
+        _presenceTimer.Stop();
         PipeWarehouseStore.ExternalChanged -= OnWarehouseExternalChanged;
+        PipeWarehouseStore.PresenceChanged -= OnPresenceChanged;
         Activated -= MainWindow_Activated;
       };
-      await CheckForUpdatesAsync(showIfCurrent: false);
+
+      // Desktop-Verknüpfung wird nicht automatisch geändert (Festinstallation / Icon belassen).
+
+      // Kein await auf Lager-Init: SharedFolder/Netz kann auf diesem PC blockieren.
+      _ = Task.Run(() =>
+      {
+        try { PipeWarehouseStore.EnsureInitialized(); } catch { }
+        List<PipeWarehouseStockItem> items = [];
+        try { items = PipeWarehouseStore.Load(); } catch { items = []; }
+        Dispatcher.BeginInvoke(() =>
+        {
+          try
+          {
+            _warehouseItems = items;
+            SyncRemnantsFromWarehouse();
+            UpdateWarehouseStatus();
+            RefreshNetworkPresence();
+          }
+          catch
+          {
+          }
+        });
+      });
+
+      RefreshNetworkPresence();
+      try
+      {
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(12));
+        await CheckForUpdatesAsync(showIfCurrent: false, cts.Token);
+      }
+      catch (OperationCanceledException)
+      {
+      }
+      catch
+      {
+      }
     };
   }
 
   private void MainWindow_Activated(object? sender, EventArgs e)
   {
-    if (_isProcessing)
-      return;
-    RefreshWarehouseFromSharedStore(showStatusNote: false);
+    // Kein synchrones Lager-Laden beim Aktivieren – blockiert sonst bei SharedFolder.
   }
 
   private void OnWarehouseExternalChanged()
@@ -88,27 +127,123 @@ public partial class MainWindow : Window
     });
   }
 
+  private void OnPresenceChanged()
+  {
+    Dispatcher.BeginInvoke(RefreshNetworkPresence);
+  }
+
+    private void RefreshNetworkPresence()
+  {
+    if (NetworkPresenceTextBlock is null || NetworkPresenceDot is null || NetworkPresenceBorder is null)
+      return;
+
+    _ = Task.Run(() =>
+    {
+      IReadOnlyList<WarehousePresenceDto> peers;
+      string summary;
+      try
+      {
+        peers = PipeWarehouseStore.GetOnlinePeers();
+        summary = PipeWarehouseStore.FormatOnlineSummary(peers);
+      }
+      catch
+      {
+        peers = [];
+        summary = "Netzwerk: unbekannt";
+      }
+
+      Dispatcher.BeginInvoke(() =>
+      {
+        try
+        {
+          NetworkPresenceTextBlock.Text = summary;
+          NetworkPresenceDot.Fill = peers.Count > 0
+            ? new SolidColorBrush(Color.FromRgb(0x2E, 0x9E, 0x6A))
+            : new SolidColorBrush(Color.FromRgb(0xB0, 0x5A, 0x4A));
+          NetworkPresenceBorder.ToolTip = peers.Count == 0
+            ? "Keine Netzwerk-Verbindung / niemand online"
+            : "Verbunden:" + Environment.NewLine
+              + string.Join(Environment.NewLine, peers.Select(p =>
+                  "• " + p.DisplayName + (string.Equals(p.Role, "host", StringComparison.OrdinalIgnoreCase) ? " (Zentrale)" : string.Empty)));
+        }
+        catch
+        {
+        }
+      });
+    });
+  }
+
+  private void NetworkPresence_Click(object sender, MouseButtonEventArgs e)
+  {
+    e.Handled = true;
+    var peers = PipeWarehouseStore.GetOnlinePeers();
+    var body = peers.Count == 0
+      ? "Derzeit ist niemand online bzw. die Lager-Zentrale ist nicht erreichbar."
+      : string.Join(Environment.NewLine, peers.Select(p =>
+          "• " + p.DisplayName
+          + (string.Equals(p.Role, "host", StringComparison.OrdinalIgnoreCase) ? "  —  Zentrale"
+            : string.Equals(p.Role, "local", StringComparison.OrdinalIgnoreCase) ? "  —  Lokalmodus"
+            : "  —  Client")));
+
+    MessageBox.Show(
+      this,
+      body + Environment.NewLine + Environment.NewLine
+      + "Einstellung: Einstellungen → Lager-Zentrale für mehrere PCs.",
+      "Netzwerk · Online",
+      MessageBoxButton.OK,
+      MessageBoxImage.Information);
+  }
   private void RefreshWarehouseFromSharedStore(bool showStatusNote)
   {
-    try
+    if (!PipeWarehouseStore.UsesSharedNetworkPath)
     {
-      ReloadWarehouseProfiles();
-      SyncRemnantsFromWarehouse();
-      UpdateWarehouseStatus();
-      if (showStatusNote && PipeWarehouseStore.UsesSharedNetworkPath)
-        WarehouseStatusTextBlock.Text += " · von Zentrale aktualisiert";
+      try
+      {
+        ReloadWarehouseProfiles();
+        SyncRemnantsFromWarehouse();
+        UpdateWarehouseStatus();
+      }
+      catch
+      {
+      }
+      return;
     }
-    catch
+
+    _ = Task.Run(() =>
     {
-      // Netzwerk kurz nicht erreichbar
-    }
+      List<PipeWarehouseStockItem> items;
+      try { items = PipeWarehouseStore.Load(); }
+      catch { return; }
+
+      Dispatcher.BeginInvoke(() =>
+      {
+        try
+        {
+          _warehouseItems = items;
+          SyncRemnantsFromWarehouse();
+          UpdateWarehouseStatus();
+          if (showStatusNote)
+            WarehouseStatusTextBlock.Text += " · von Zentrale aktualisiert";
+        }
+        catch
+        {
+        }
+      });
+    });
   }
 
   private void InitializeWarehouse()
   {
-    PipeWarehouseStore.EnsureInitialized();
-    ReloadWarehouseProfiles();
-    UpdateWarehouseStatus();
+    try
+    {
+      PipeWarehouseStore.EnsureInitialized();
+      ReloadWarehouseProfiles();
+      UpdateWarehouseStatus();
+    }
+    catch (Exception ex)
+    {
+      try { WarehouseStatusTextBlock.Text = "Lager nicht bereit: " + ex.Message; } catch { }
+    }
   }
 
   private void ReloadWarehouseProfiles()
@@ -338,14 +473,14 @@ public partial class MainWindow : Window
   private void CheckForUpdates_Click(object sender, RoutedEventArgs e) =>
     _ = CheckForUpdatesAsync(showIfCurrent: true);
 
-  private async Task CheckForUpdatesAsync(bool showIfCurrent)
+  private async Task CheckForUpdatesAsync(bool showIfCurrent, CancellationToken cancellationToken = default)
   {
     try
     {
       if (showIfCurrent)
         Mouse.OverrideCursor = Cursors.Wait;
 
-      var update = await GitHubUpdateService.CheckForUpdateAsync();
+      var update = await GitHubUpdateService.CheckForUpdateAsync(cancellationToken);
 
       if (!string.IsNullOrWhiteSpace(update.ErrorMessage))
       {
@@ -592,27 +727,31 @@ public partial class MainWindow : Window
         }
       }
 
-      SetProgress(82, "Profil und Lager abgleichen …");
+      SetProgress(82, "Profile und Lager abgleichen …");
+      _warehouseItems = PipeWarehouseStore.Load();
+      // Mehrere Profile behalten – kein "Gewinner" mehr, der andere Maße verwirft.
       if (profileVotes.Count > 0)
       {
-        _warehouseItems = PipeWarehouseStore.Load();
-        var winner = profileVotes.Values
-          .OrderByDescending(entry => string.IsNullOrWhiteSpace(entry.Material) ? 0 : 1)
-          .ThenByDescending(entry =>
-            string.IsNullOrWhiteSpace(entry.Material)
-              ? 0
-              : PipeWarehouseService.CountAvailableBars(entry.Profile.Id, entry.Material, _warehouseItems))
-          .ThenByDescending(entry => entry.Count)
+        var primary = profileVotes.Values
+          .OrderByDescending(entry => entry.Count)
+          .ThenByDescending(entry => string.IsNullOrWhiteSpace(entry.Material) ? 0 : 1)
           .First();
         TryApplyDetectedProfile(
           new PdfDrawingAnalysisResult
           {
-            Profile = winner.Profile,
-            Material = string.IsNullOrWhiteSpace(winner.Material) ? null : winner.Material,
+            Profile = primary.Profile,
+            Material = string.IsNullOrWhiteSpace(primary.Material) ? null : primary.Material,
             Kind = DrawingPartKind.Pipe
           },
-          overwriteExisting: _cutProfile is null,
+          overwriteExisting: true,
           notes);
+        if (profileVotes.Count > 1)
+        {
+          notes.Add("Mehrere Profile erkannt: "
+                    + string.Join(", ", profileVotes.Values
+                      .OrderByDescending(v => v.Count)
+                      .Select(v => v.Profile.FullLabel + " (" + v.Count + ")")));
+        }
       }
 
       SetProgress(88, "Teile übernehmen …");
@@ -626,12 +765,9 @@ public partial class MainWindow : Window
             continue;
           }
 
-          if (_cutProfile is not null
-              && analysis.Profile is not null
-              && !string.Equals(_cutProfile.Id, analysis.Profile.Id, StringComparison.OrdinalIgnoreCase))
+          if (analysis.Profile is null)
           {
-            skippedWrongProfile++;
-            notes.Add($"{file.FileName}: {analysis.Profile.FullLabel} – anderes Maß als {_cutProfile.FullLabel}");
+            notes.Add($"{file.FileName}: Rohr erkannt, aber kein Profilmaß – bitte manuell zuordnen");
             continue;
           }
 
@@ -640,7 +776,7 @@ public partial class MainWindow : Window
             notes.Add($"{file.FileName}: Rohr erkannt"
                       + (!string.IsNullOrWhiteSpace(analysis.PartName) ? $" ({analysis.PartName})" : string.Empty)
                       + ", aber keine Rohrlänge in PDF/STEP – bitte manuell eintragen"
-                      + (analysis.Profile is not null ? $" (Profil: {analysis.Profile.FullLabel})" : string.Empty));
+                      + $" (Profil: {analysis.Profile.FullLabel})");
             continue;
           }
 
@@ -652,10 +788,20 @@ public partial class MainWindow : Window
             quantityFromExcel++;
           }
 
+          var material = PipeWarehouseService.ResolveMaterialForAvailableStock(
+            analysis.Profile.Id,
+            analysis.Material,
+            _warehouseItems,
+            out _,
+            materialFromDrawing: !string.IsNullOrWhiteSpace(analysis.Material));
+
           var part = new CutPartEntry
           {
             DrawingName = file.FileName,
             PdfPath = file.FullPath,
+            ProfileId = analysis.Profile.Id,
+            ProfileLabel = analysis.Profile.FullLabel,
+            Material = material,
             LengthMm = analysis.LengthMm.Value,
             MiterEnd1Deg = MiterNotation.NormalizeInputAngle(analysis.MiterEnd1Deg ?? 0),
             MiterEnd2Deg = MiterNotation.NormalizeInputAngle(analysis.MiterEnd2Deg ?? 0),
@@ -720,14 +866,23 @@ public partial class MainWindow : Window
 
       PdfFolderTextBlock.Text = $"{files.Count} Zeichnung(en) · {added} Rohr(e) in Teilliste"
                                 + (skippedNotPipe > 0 ? $" · {skippedNotPipe} Blech/kein Rohr" : string.Empty)
-                                + (skippedWrongProfile > 0 ? $" · {skippedWrongProfile} anderes Profilmaß" : string.Empty)
+                                + (profileVotes.Count > 1 ? $" · {profileVotes.Count} Profile" : string.Empty)
                                 + (generated > 0 ? $" · {generated} Werkstattzeichnung(en)" : string.Empty)
                                 + (quantityFromExcel > 0 ? $" · {quantityFromExcel}× Menge aus Excel" : string.Empty)
                                 + (localAiHits > 0 ? $" · {localAiHits}× Vision-KI" : string.Empty);
 
-      var profileLine = _cutProfile is not null
-        ? $"Aktives Profil: {_cutProfile.FullLabel} · {_cutMaterial}"
-        : "Kein Profil erkannt – bitte manuell wählen.";
+      var distinctProfiles = _parts
+        .Where(p => !string.IsNullOrWhiteSpace(p.ProfileId))
+        .Select(p => p.ProfileLabel ?? p.ProfileId!)
+        .Distinct(StringComparer.OrdinalIgnoreCase)
+        .OrderBy(x => x, StringComparer.OrdinalIgnoreCase)
+        .ToList();
+      UpdateCutProfileHeaderFromParts();
+      var profileLine = distinctProfiles.Count == 0
+        ? "Kein Profil erkannt – bitte manuell wählen."
+        : distinctProfiles.Count == 1
+          ? $"Profil: {distinctProfiles[0]}"
+          : $"Profile ({distinctProfiles.Count}): " + string.Join(", ", distinctProfiles);
 
       var excelLine = excelName is null
         ? "Keine Excel-Datei gefunden (ZIP/Dateien enthielten keine .xlsx) – Stückzahl = 1. Excel ggf. zusätzlich mit ablegen."
@@ -797,14 +952,6 @@ public partial class MainWindow : Window
         bomUsed[matchIndex] = true;
 
       var profile = row.Profile ?? match?.Profile;
-      if (_cutProfile is not null
-          && profile is not null
-          && !string.Equals(_cutProfile.Id, profile.Id, StringComparison.OrdinalIgnoreCase))
-      {
-        notes.Add(
-          ExcelRowLabel(row) + $": {profile.FullLabel} – anderes Maß als {_cutProfile.FullLabel}");
-        continue;
-      }
 
       var length = row.LengthMm ?? match?.LengthMm;
       var drawingNumber = !string.IsNullOrWhiteSpace(row.DrawingNumber)
@@ -852,10 +999,22 @@ public partial class MainWindow : Window
         files.Add(option);
         existingPdfs.Add(option);
 
+        var material = profile is null
+          ? (_cutMaterial ?? PipeMaterialTypes.Steel)
+          : PipeWarehouseService.ResolveMaterialForAvailableStock(
+              profile.Id,
+              _cutMaterial,
+              _warehouseItems,
+              out _,
+              materialFromDrawing: false);
+
         var part = new CutPartEntry
         {
           DrawingName = fileName,
           PdfPath = pdfPath,
+          ProfileId = profile?.Id,
+          ProfileLabel = profile?.FullLabel,
+          Material = material,
           LengthMm = length ?? 0,
           Quantity = row.Quantity
         };
@@ -1270,7 +1429,9 @@ public partial class MainWindow : Window
     return Path.Combine(folder, $"Bestellliste_{SanitizeFileNamePart(orderReference)}.pdf");
   }
 
-  private void Optimize_Click(object sender, RoutedEventArgs e)
+  private void Optimize_Click(object sender, RoutedEventArgs e) => _ = OptimizeAsync();
+
+  private async Task OptimizeAsync()
   {
     try
     {
@@ -1288,32 +1449,8 @@ public partial class MainWindow : Window
       var kerfMm = appSettings.KerfMm;
       if (kerfMm < 0)
         throw new InvalidOperationException("Schnittbreite in den Einstellungen ist ungültig.");
-      var profile = GetSelectedCutProfile();
-
-      if (profile is null || string.IsNullOrWhiteSpace(_cutMaterial))
-      {
-        MessageBox.Show(
-          this,
-          "Bitte zuerst Rohrprofil und Materialart unter „Teile erfassen …“ wählen.",
-          "Profil fehlt",
-          MessageBoxButton.OK,
-          MessageBoxImage.Information);
-        return;
-      }
-
-      SetProgress(20, "Lagermaterial (Reste → Vollstangen) …");
-      _warehouseItems = PipeWarehouseStore.Load();
-      // Material aus Zeichnung / aktiver Auswahl behalten – nicht durch anderes Lagermaterial ersetzen
-      var remnants = PipeWarehouseService.BuildStockForOptimization(
-        profile.Id, _cutMaterial!, stockLengthMm, _warehouseItems);
-      SyncRemnantsFromWarehouse();
-
-      var warehouseBars = remnants.Sum(entry => entry.Quantity);
-      var remnantBars = remnants.Where(entry => !entry.IsFullBar).Sum(entry => entry.Quantity);
-      var fullBars = remnants.Where(entry => entry.IsFullBar).Sum(entry => entry.Quantity);
 
       var parts = CollectPartsForOptimization();
-
       if (parts.Count == 0)
       {
         MessageBox.Show(
@@ -1325,16 +1462,71 @@ public partial class MainWindow : Window
         return;
       }
 
+      var missingProfile = parts.Where(p => string.IsNullOrWhiteSpace(p.ProfileId)).ToList();
+      if (missingProfile.Count > 0)
+      {
+        MessageBox.Show(
+          this,
+          "Für diese Teile fehlt das Rohrprofil:"
+          + Environment.NewLine + Environment.NewLine
+          + string.Join(Environment.NewLine, missingProfile.Take(12).Select(p =>
+              "• " + (string.IsNullOrWhiteSpace(p.DrawingName) ? "ohne Name" : p.DrawingName))),
+          "Profil fehlt",
+          MessageBoxButton.OK,
+          MessageBoxImage.Information);
+        return;
+      }
+
+      SetProgress(20, "Lagermaterial laden …");
+      _warehouseItems = PipeWarehouseStore.Load();
+
+      var groups = parts
+        .GroupBy(PartProfileKey, StringComparer.OrdinalIgnoreCase)
+        .OrderBy(g => g.First().ProfileLabel ?? g.First().ProfileId, StringComparer.OrdinalIgnoreCase)
+        .ToList();
+
+      var profileSummary = string.Join(", ", groups.Select(g =>
+        (g.First().ProfileLabel ?? g.First().ProfileId) + " · " + (g.First().Material ?? PipeMaterialTypes.Steel)
+        + " (" + g.Sum(p => p.Quantity) + " Stk)"));
+
       SetProgress(35, "PDF-Längen prüfen …");
       RefreshPartLengthsFromPdfs(parts);
+
+      SetProgress(40, "Werkstattzeichnungen werden erstellt …");
+      foreach (var group in groups)
+      {
+        var gProfile = PipeStockCatalog.TryGet(group.First().ProfileId!);
+        if (gProfile is null)
+          continue;
+        var gMaterial = group.First().Material ?? PipeMaterialTypes.Steel;
+        EnsureWorkshopDrawingsForParts(group.ToList(), gProfile, gMaterial, orderReference);
+      }
+
+      var drawingFolder = Path.Combine(AppInfo.UserDataDirectory, "Werkstattzeichnungen", "Manuell");
+      var orderedDrawingPaths = parts
+        .OrderBy(p => p.ProfileLabel ?? p.ProfileId, StringComparer.OrdinalIgnoreCase)
+        .ThenByDescending(part => part.LengthMm)
+        .ThenBy(part => part.DrawingName, StringComparer.OrdinalIgnoreCase)
+        .Select(part => part.PdfPath)
+        .Where(path => !string.IsNullOrWhiteSpace(path) && File.Exists(path!))
+        .Cast<string>()
+        .ToList();
+      var combinedPdfPath = WorkshopDrawingPdfMergeService.MergeDrawings(
+        WorkshopDrawingPdfMergeService.BuildCombinedDrawingPath(drawingFolder, orderReference),
+        orderedDrawingPaths);
 
       SetProgress(45, "Vorschau …");
       var preview = new OptimizePreviewWindow(
         orderReference,
-        profile.FullLabel,
-        _cutMaterial!,
+        groups.Count == 1
+          ? (groups[0].First().ProfileLabel ?? groups[0].First().ProfileId!)
+          : $"{groups.Count} Profile",
+        groups.Count == 1
+          ? (groups[0].First().Material ?? PipeMaterialTypes.Steel)
+          : profileSummary,
         stockLengthMm,
-        parts)
+        parts,
+        combinedPdfPath)
       {
         Owner = this
       };
@@ -1352,113 +1544,166 @@ public partial class MainWindow : Window
           + Environment.NewLine + Environment.NewLine
           + string.Join(Environment.NewLine, oversized.Select(part =>
             "• " + (string.IsNullOrWhiteSpace(part.DrawingName) ? "Manuelle Eingabe" : part.DrawingName)
-            + ": " + part.LengthMm.ToString("0.###", CultureInfo.InvariantCulture) + " mm × " + part.Quantity)),
+            + " [" + part.ProfileDisplay + "]: " + part.LengthMm.ToString("0.###", CultureInfo.InvariantCulture) + " mm × " + part.Quantity)),
           "Teil zu lang",
           MessageBoxButton.OK,
           MessageBoxImage.Warning);
         return;
       }
 
-      SetProgress(70, $"Optimieren mit Lager ({warehouseBars} Stk: {remnantBars} Rest, {fullBars} Voll) …");
-      var result = CutOptimizationService.Optimize(stockLengthMm, kerfMm, parts, remnants);
-      _lastResult = result;
-      _lastParts = parts;
-      _lastReservation = null;
-      _lastOrderReference = orderReference;
+      var combinedBars = new List<CutBarPlan>();
+      var combinedSummaries = new List<string>();
+      var totalWaste = 0.0;
+      var totalRemnant = 0;
+      var totalNew = 0;
+      var totalOrdered = 0;
+      var totalSaw = 0;
+      CutOptimizationResult? lastResult = null;
+      WarehouseReservationResult? lastReservation = null;
+      var barOffset = 0;
 
-      SetProgress(85, "Lager / Bestellliste …");
-      if (profile is not null && !string.IsNullOrWhiteSpace(_cutMaterial))
+      for (var groupIndex = 0; groupIndex < groups.Count; groupIndex++)
       {
-        // Bestellliste nur für echte Fehlmenge – nicht wenn Lager gereicht hat
-        var deferWarehouseBooking = result.OrderedNewBarsCount > 0;
-        var orderLines = PipeWarehouseService.BuildOrderList(profile.Id, _cutMaterial, result, profile);
+        var group = groups[groupIndex];
+        var groupParts = group.ToList();
+        var profile = PipeStockCatalog.TryGet(groupParts[0].ProfileId!);
+        if (profile is null)
+          throw new InvalidOperationException("Unbekanntes Profil: " + groupParts[0].ProfileId);
+        var material = groupParts[0].Material ?? PipeMaterialTypes.Steel;
+        var groupOrderRef = groups.Count == 1
+          ? orderReference
+          : orderReference + "-" + SanitizeFileNamePart(profile.Id);
 
+        SetProgress(
+          50 + (int)(40.0 * (groupIndex + 1) / groups.Count),
+          $"Optimieren {groupIndex + 1}/{groups.Count}: {profile.FullLabel} …");
+
+        var remnants = PipeWarehouseService.BuildStockForOptimization(
+          profile.Id, material, stockLengthMm, _warehouseItems);
+        var result = CutOptimizationService.Optimize(stockLengthMm, kerfMm, groupParts, remnants);
+        result.ProfileId = profile.Id;
+        result.ProfileLabel = profile.FullLabel;
+        result.Material = material;
+        result.SawPlanSummary =
+          (groups.Count > 1 ? profile.FullLabel + " · " + material + Environment.NewLine : string.Empty)
+          + result.SawPlanSummary;
+
+        var renumbered = result.Bars.Select(bar => new CutBarPlan
+        {
+          BarNumber = bar.BarNumber + barOffset,
+          StockLengthMm = bar.StockLengthMm,
+          IsRemnant = bar.IsRemnant,
+          Pieces = bar.Pieces,
+          OrientedPieces = bar.OrientedPieces,
+          StockCutSteps = bar.StockCutSteps,
+          UsedMm = bar.UsedMm,
+          WasteMm = bar.WasteMm,
+          SawAdjustments = bar.SawAdjustments,
+          ExternalMiterOps = bar.ExternalMiterOps,
+          SawPlanSummary = (groups.Count > 1 ? "[" + profile.FullLabel + "] " : string.Empty) + bar.SawPlanSummary
+        }).ToList();
+        barOffset += renumbered.Count;
+        combinedBars.AddRange(renumbered);
+        combinedSummaries.Add(result.SawPlanSummary);
+        totalWaste += result.TotalWasteMm;
+        totalRemnant += result.RemnantBarsUsed;
+        totalNew += result.NewOriginalBarsUsed;
+        totalOrdered += result.OrderedNewBarsCount;
+        totalSaw += result.SawAdjustments;
+
+        var deferWarehouseBooking = result.OrderedNewBarsCount > 0;
+        var orderLines = PipeWarehouseService.BuildOrderList(profile.Id, material, result, profile);
+        WarehouseReservationResult? reservation = null;
         if (!deferWarehouseBooking)
         {
-          _lastReservation = PipeWarehouseService.ReserveOptimizationResult(
-            profile.Id, _cutMaterial, result, _warehouseItems, orderReference);
-          ReloadWarehouseProfiles();
-          SyncRemnantsFromWarehouse();
-          UpdateWarehouseStatus();
+          reservation = PipeWarehouseService.ReserveOptimizationResult(
+            profile.Id, material, result, _warehouseItems, groupOrderRef);
+          _warehouseItems = PipeWarehouseStore.Load();
         }
 
         PipeOrderService.SaveFromOptimization(
-          orderReference,
+          groupOrderRef,
           profile,
-          _cutMaterial,
+          material,
           stockLengthMm,
           kerfMm,
-          parts,
+          groupParts,
           result,
-          _lastReservation,
+          reservation,
           warehouseBooked: !deferWarehouseBooking);
 
         if (orderLines.Count > 0)
         {
-          var emptyReservation = _lastReservation ?? new WarehouseReservationResult { OrderReference = orderReference };
-          var orderPdfPath = CreateAutoOrderPdfPath(orderReference);
+          var emptyReservation = reservation ?? new WarehouseReservationResult { OrderReference = groupOrderRef };
+          var orderPdfPath = CreateAutoOrderPdfPath(groupOrderRef);
           OrderListPdfExportService.Export(
             orderPdfPath,
-            orderReference,
+            groupOrderRef,
             profile,
-            _cutMaterial,
+            material,
             emptyReservation,
             orderLines,
             result);
-
-          try
-          {
-            Process.Start(new ProcessStartInfo(orderPdfPath) { UseShellExecute = true });
-          }
-          catch (Exception ex)
-          {
-            MessageBox.Show(
-              this,
-              $"Bestellliste konnte nicht geöffnet werden:\n{ex.Message}",
-              "Bestellliste",
-              MessageBoxButton.OK,
-              MessageBoxImage.Warning);
-          }
-
-          var stockHint = warehouseBars > 0
-            ? $"Lager hatte {warehouseBars} Stange(n) für {_cutMaterial}, aber {result.OrderedNewBarsCount} zusätzliche Originalstange(n) fehlen."
-            : $"Im Lager kein freies Material für {profile.FullLabel} · {_cutMaterial} (Qty = 0).";
-
-          MessageBox.Show(
-            this,
-            stockHint + Environment.NewLine + Environment.NewLine
-            + PipeWarehouseService.FormatOrderList(orderLines) + Environment.NewLine + Environment.NewLine
-            + $"Auftrag: {orderReference}" + Environment.NewLine
-            + $"Bestellliste-PDF: {orderPdfPath}" + Environment.NewLine + Environment.NewLine
-            + "Nach Lieferung: Menü „Lager → Aufträge“ → Material eingetroffen → nach dem Schneiden „Schnitt verbuchen“.",
-            "Material fehlt — Bestellliste erstellt",
-            MessageBoxButton.OK,
-            MessageBoxImage.Information);
+          try { Process.Start(new ProcessStartInfo(orderPdfPath) { UseShellExecute = true }); }
+          catch { }
         }
-        else if (_lastReservation?.ReservedBarsCount > 0 || _lastReservation?.ReturnedRemnantCount > 0)
-        {
-          MessageBox.Show(
-            this,
-            PipeWarehouseService.FormatReservationSummary(_lastReservation!) + Environment.NewLine + Environment.NewLine
-            + $"Auftrag: {orderReference}",
-            "Lager reserviert",
-            MessageBoxButton.OK,
-            MessageBoxImage.Information);
-        }
+
+        var cutPdfPath = Path.Combine(
+          AppInfo.UserDataDirectory,
+          "Zuschnittplan_" + SanitizeFileNamePart(groupOrderRef) + ".pdf");
+        CutPlanPdfExportService.Export(
+          cutPdfPath,
+          result,
+          groupParts,
+          orderReference: groupOrderRef,
+          processingDuration: GetDisplayedProcessingElapsed());
+        try { Process.Start(new ProcessStartInfo(cutPdfPath) { UseShellExecute = true }); }
+        catch { }
+
+        lastResult = result;
+        if (reservation is not null)
+          lastReservation = reservation;
       }
 
+      ReloadWarehouseProfiles();
+      SyncRemnantsFromWarehouse();
+      UpdateWarehouseStatus();
+      UpdateCutProfileHeaderFromParts();
+
+      var combined = new CutOptimizationResult
+      {
+        ProfileLabel = groups.Count == 1 ? lastResult?.ProfileLabel : $"{groups.Count} Profile",
+        Material = groups.Count == 1 ? lastResult?.Material : null,
+        Bars = combinedBars,
+        TotalBars = combinedBars.Count,
+        TotalWasteMm = totalWaste,
+        StockLengthMm = stockLengthMm,
+        RemnantBarsUsed = totalRemnant,
+        NewOriginalBarsUsed = totalNew,
+        OrderedNewBarsCount = totalOrdered,
+        KerfMm = kerfMm,
+        SawAdjustments = totalSaw,
+        SawPlanSummary = string.Join(Environment.NewLine + Environment.NewLine, combinedSummaries)
+      };
+
+      _lastResult = combined;
+      _lastParts = parts;
+      _lastReservation = lastReservation;
+      _lastOrderReference = orderReference;
+
       SetProgress(95, "Zuschnittplan …");
-      ShowResult(result);
-      OpenPrintPdf();
+      ShowResult(combined);
       SummaryTextBlock.Text =
         SummaryTextBlock.Text
         + Environment.NewLine
-        + $"Lager genutzt: {result.RemnantBarsUsed} Rest + {result.NewOriginalBarsUsed - result.OrderedNewBarsCount} Voll"
-        + (result.OrderedNewBarsCount > 0
-          ? $", Bestellung: {result.OrderedNewBarsCount} Stange(n)"
+        + $"Profile: {profileSummary}"
+        + Environment.NewLine
+        + $"Lager genutzt: {combined.RemnantBarsUsed} Rest + {Math.Max(0, combined.NewOriginalBarsUsed - combined.OrderedNewBarsCount)} Voll"
+        + (combined.OrderedNewBarsCount > 0
+          ? $", Bestellung: {combined.OrderedNewBarsCount} Stange(n)"
           : ", keine Bestellung nötig")
         + Environment.NewLine
-        + "Zuschnittplan berechnet – PDF wurde geöffnet. Bei Bedarf rechts „Zuschnittplan speichern unter …“.";
+        + "Zuschnittplan je Profil als PDF geöffnet.";
       SetProgress(100, "Fertig");
     }
     catch (Exception ex)
@@ -1468,6 +1713,27 @@ public partial class MainWindow : Window
     finally
     {
       SetProcessingState(false);
+    }
+  }
+
+  private static void EnsureWorkshopDrawingsForParts(
+    IReadOnlyList<CutPartEntry> parts,
+    PipeProfileDefinition profile,
+    string material,
+    string orderReference)
+  {
+    var folder = Path.Combine(AppInfo.UserDataDirectory, "Werkstattzeichnungen", "Manuell");
+    var sequence = 1;
+    foreach (var part in parts.Where(p => string.IsNullOrWhiteSpace(p.PdfPath) || !File.Exists(p.PdfPath)))
+    {
+      try
+      {
+        WorkshopTubeDrawingService.EnsureDrawingForPart(part, folder, profile, material, orderReference, ref sequence);
+      }
+      catch
+      {
+        // Vorschau zeigt Hinweis, falls die PDF-Erzeugung fehlschlägt.
+      }
     }
   }
 
@@ -1499,6 +1765,41 @@ public partial class MainWindow : Window
     _remnants
       .Where(r => r.LengthMm > 0 && r.Quantity > 0)
       .ToList();
+
+
+  private void UpdateCutProfileHeaderFromParts()
+  {
+    var groups = _parts
+      .Where(p => !string.IsNullOrWhiteSpace(p.ProfileId))
+      .GroupBy(p => p.ProfileId + "|" + (p.Material ?? ""), StringComparer.OrdinalIgnoreCase)
+      .Select(g => g.First())
+      .ToList();
+
+    if (groups.Count == 0)
+    {
+      if (_cutProfile is null)
+        CutProfileDisplayTextBlock.Text = "Profil unter „Teile erfassen“ wählen";
+      return;
+    }
+
+    if (groups.Count == 1)
+    {
+      var only = groups[0];
+      var profile = PipeStockCatalog.TryGet(only.ProfileId!);
+      if (profile is not null)
+        ApplyCutProfile(profile, only.Material ?? PipeMaterialTypes.Steel);
+      else
+        CutProfileDisplayTextBlock.Text = $"{only.ProfileDisplay} · {only.Material}";
+      return;
+    }
+
+    CutProfileDisplayTextBlock.Text =
+      $"{groups.Count} Profile: "
+      + string.Join(", ", groups.Select(g => g.ProfileDisplay).Distinct(StringComparer.OrdinalIgnoreCase));
+  }
+
+  private static string PartProfileKey(CutPartEntry part) =>
+    (part.ProfileId ?? "") + "|" + (part.Material ?? PipeMaterialTypes.Steel);
 
   private List<CutPartEntry> CollectPartsForOptimization() =>
     _parts

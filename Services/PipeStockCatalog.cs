@@ -50,6 +50,13 @@ public static class PipeStockCatalog
       if (!TryParseCatalogSize(profile, out var a, out var b, out var thickness))
         continue;
 
+      if (kind == PipeProfileKind.RoundBar)
+      {
+        if (Math.Abs(a - primaryMm) <= toleranceMm)
+          return profile;
+        continue;
+      }
+
       if (Math.Abs(thickness - thicknessMm) > toleranceMm)
         continue;
 
@@ -86,10 +93,20 @@ public static class PipeStockCatalog
       key = key[(dash + 1)..];
 
     var parts = key.Split('x', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-    if (parts.Length < 2)
+    if (parts.Length < 1)
       return false;
 
     if (!TryParseInvariant(parts[0], out primaryMm))
+      return false;
+
+    if (profile.Kind == PipeProfileKind.RoundBar)
+    {
+      secondaryMm = primaryMm;
+      thicknessMm = 0;
+      return true;
+    }
+
+    if (parts.Length < 2)
       return false;
 
     if (profile.Kind == PipeProfileKind.Round)
@@ -209,6 +226,48 @@ public static class PipeStockCatalog
     AddRect(list, "120x80x5", "120 × 80 × 5");
     AddRect(list, "150x100x6", "150 × 100 × 6");
 
+    AddC(list, "30x15x2", "30 × 15 × 2");
+    AddC(list, "40x20x2", "40 × 20 × 2");
+    AddC(list, "40x20x3", "40 × 20 × 3");
+    AddC(list, "50x25x2", "50 × 25 × 2");
+    AddC(list, "50x25x3", "50 × 25 × 3");
+    AddC(list, "60x30x3", "60 × 30 × 3");
+    AddC(list, "80x40x3", "80 × 40 × 3");
+    AddC(list, "80x40x4", "80 × 40 × 4");
+    AddC(list, "100x50x3", "100 × 50 × 3");
+    AddC(list, "100x50x4", "100 × 50 × 4");
+    AddC(list, "120x50x4", "120 × 50 × 4");
+    AddC(list, "120x60x4", "120 × 60 × 4");
+
+    AddU(list, "30x15x2", "30 × 15 × 2");
+    AddU(list, "40x20x2", "40 × 20 × 2");
+    AddU(list, "40x20x3", "40 × 20 × 3");
+    AddU(list, "50x25x3", "50 × 25 × 3");
+    AddU(list, "60x30x3", "60 × 30 × 3");
+    AddU(list, "80x40x3", "80 × 40 × 3");
+    AddU(list, "80x40x4", "80 × 40 × 4");
+    AddU(list, "100x50x4", "100 × 50 × 4");
+    AddU(list, "120x55x5", "120 × 55 × 5");
+    AddU(list, "140x60x5", "140 × 60 × 5");
+    AddU(list, "160x65x6", "160 × 65 × 6");
+
+    AddT(list, "20x20x3", "20 × 20 × 3");
+    AddT(list, "25x25x3", "25 × 25 × 3");
+    AddT(list, "30x30x3", "30 × 30 × 3");
+    AddT(list, "40x40x4", "40 × 40 × 4");
+    AddT(list, "50x50x5", "50 × 50 × 5");
+    AddT(list, "60x60x6", "60 × 60 × 6");
+    AddT(list, "80x80x8", "80 × 80 × 8");
+    AddT(list, "100x100x10", "100 × 100 × 10");
+
+    AddBar(list, "5", "Ø 5");
+    AddBar(list, "6", "Ø 6");
+    AddBar(list, "8", "Ø 8");
+    AddBar(list, "10", "Ø 10");
+    AddBar(list, "12", "Ø 12");
+    AddBar(list, "14", "Ø 14");
+    AddBar(list, "15", "Ø 15");
+
     return list;
   }
 
@@ -220,6 +279,18 @@ public static class PipeStockCatalog
 
   private static void AddRect(List<PipeProfileDefinition> list, string key, string dimensions) =>
     list.Add(Create(PipeProfileKind.Rectangular, $"P-{key}", dimensions));
+
+  private static void AddC(List<PipeProfileDefinition> list, string key, string dimensions) =>
+    list.Add(Create(PipeProfileKind.CProfile, $"C-{key}", dimensions));
+
+  private static void AddU(List<PipeProfileDefinition> list, string key, string dimensions) =>
+    list.Add(Create(PipeProfileKind.UProfile, $"U-{key}", dimensions));
+
+  private static void AddT(List<PipeProfileDefinition> list, string key, string dimensions) =>
+    list.Add(Create(PipeProfileKind.TProfile, $"T-{key}", dimensions));
+
+  private static void AddBar(List<PipeProfileDefinition> list, string key, string dimensions) =>
+    list.Add(Create(PipeProfileKind.RoundBar, $"B-{key}", dimensions));
 
   private static PipeProfileDefinition Create(PipeProfileKind kind, string id, string dimensions) =>
     new()

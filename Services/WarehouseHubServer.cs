@@ -1,5 +1,6 @@
 using System.IO;
 using System.Net;
+using System.Net.Sockets;
 using System.Text;
 using System.Text.Json;
 using RohreZuschnittOptimierung.Models;
@@ -7,7 +8,7 @@ using RohreZuschnittOptimierung.Models;
 namespace RohreZuschnittOptimierung.Services;
 
 /// <summary>
-/// Lager-Zentrale: ein PC hostet die SQLite-DB und beantwortet HTTP-Anfragen der anderen PCs.
+/// Lager-Zentrale über TcpListener (kein Admin / kein URL-ACL wie bei HttpListener).
 /// </summary>
 internal static class WarehouseHubServer
 {
@@ -18,7 +19,7 @@ internal static class WarehouseHubServer
     PropertyNameCaseInsensitive = true
   };
 
-  private static HttpListener? _listener;
+  private static TcpListener? _listener;
   private static CancellationTokenSource? _cts;
   private static Task? _loop;
   private static int _port;
@@ -32,28 +33,26 @@ internal static class WarehouseHubServer
     lock (Gate)
     {
       if (IsRunning)
-        return;
+        StopUnlocked();
 
       if (port is < 1 or > 65535)
         port = 5088;
 
       WarehouseSqliteStore.EnsureInitialized();
+      WarehousePresenceRegistry.Heartbeat(WarehousePresenceRegistry.CreateLocalPeer("host"));
 
-      var listener = new HttpListener();
-      foreach (var prefix in BuildPrefixes(port, includeWildcard: true))
-        listener.Prefixes.Add(prefix);
-
+      var listener = new TcpListener(IPAddress.Any, port);
+      listener.Server.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
       try
       {
         listener.Start();
       }
-      catch (HttpListenerException)
+      catch (SocketException ex)
       {
-        listener.Close();
-        listener = new HttpListener();
-        foreach (var prefix in BuildPrefixes(port, includeWildcard: false))
-          listener.Prefixes.Add(prefix);
-        listener.Start();
+        throw new InvalidOperationException(
+          "Port " + port + " konnte nicht geöffnet werden: " + ex.Message
+          + Environment.NewLine + "Anderer Dienst belegt den Port? Anderen Port versuchen oder Firewall prüfen.",
+          ex);
       }
 
       _listener = listener;
@@ -68,27 +67,31 @@ internal static class WarehouseHubServer
   {
     lock (Gate)
     {
-      if (!IsRunning)
-        return;
-
-      try { _cts?.Cancel(); } catch { }
-      try { _listener?.Stop(); } catch { }
-      try { _listener?.Close(); } catch { }
-      _listener = null;
-      _cts = null;
-      _loop = null;
-      IsRunning = false;
+      StopUnlocked();
     }
+  }
+
+  private static void StopUnlocked()
+  {
+    if (!IsRunning && _listener is null)
+      return;
+
+    try { _cts?.Cancel(); } catch { }
+    try { _listener?.Stop(); } catch { }
+    _listener = null;
+    _cts = null;
+    _loop = null;
+    IsRunning = false;
   }
 
   private static async Task ListenLoopAsync(CancellationToken cancellationToken)
   {
     while (!cancellationToken.IsCancellationRequested)
     {
-      HttpListenerContext context;
+      TcpClient client;
       try
       {
-        context = await _listener!.GetContextAsync().WaitAsync(cancellationToken).ConfigureAwait(false);
+        client = await _listener!.AcceptTcpClientAsync(cancellationToken).ConfigureAwait(false);
       }
       catch (OperationCanceledException)
       {
@@ -102,35 +105,154 @@ internal static class WarehouseHubServer
         continue;
       }
 
-      _ = Task.Run(() => HandleRequest(context), cancellationToken);
+      _ = Task.Run(() => HandleClient(client), cancellationToken);
     }
   }
 
-  private static void HandleRequest(HttpListenerContext context)
+  private static void HandleClient(TcpClient client)
+  {
+    using (client)
+    {
+      try
+      {
+        client.ReceiveTimeout = 8000;
+        client.SendTimeout = 8000;
+        using var stream = client.GetStream();
+        var (method, path, body) = ReadHttpRequest(stream);
+        HandleRequest(stream, method, path, body);
+      }
+      catch
+      {
+      }
+    }
+  }
+
+  private static (string Method, string Path, string Body) ReadHttpRequest(NetworkStream stream)
+  {
+    var buffer = new MemoryStream();
+    var chunk = new byte[4096];
+    var headerEnd = -1;
+    while (headerEnd < 0)
+    {
+      var read = stream.Read(chunk, 0, chunk.Length);
+      if (read <= 0)
+        break;
+      buffer.Write(chunk, 0, read);
+      var bytes = buffer.ToArray();
+      headerEnd = IndexOfHeaderEnd(bytes);
+      if (headerEnd >= 0)
+        break;
+      if (buffer.Length > 1024 * 1024)
+        throw new InvalidOperationException("HTTP-Header zu groß.");
+    }
+
+    var raw = buffer.ToArray();
+    if (headerEnd < 0)
+      throw new InvalidOperationException("Unvollständige HTTP-Anfrage.");
+
+    var headerText = Encoding.ASCII.GetString(raw, 0, headerEnd);
+    var lines = headerText.Split(new[] { "\r\n", "\n" }, StringSplitOptions.None);
+    if (lines.Length == 0)
+      throw new InvalidOperationException("Leere HTTP-Anfrage.");
+
+    var parts = lines[0].Split(' ', StringSplitOptions.RemoveEmptyEntries);
+    var method = parts.Length > 0 ? parts[0] : "GET";
+    var pathWithQuery = parts.Length > 1 ? parts[1] : "/";
+    var path = pathWithQuery.Split('?', 2)[0];
+
+    var contentLength = 0;
+    foreach (var line in lines.Skip(1))
+    {
+      if (line.StartsWith("Content-Length:", StringComparison.OrdinalIgnoreCase)
+          && int.TryParse(line["Content-Length:".Length..].Trim(), out var len))
+        contentLength = Math.Max(0, len);
+    }
+
+    var bodyStart = headerEnd + 4;
+    var bodyBuilder = new MemoryStream();
+    if (bodyStart < raw.Length)
+      bodyBuilder.Write(raw, bodyStart, raw.Length - bodyStart);
+
+    while (bodyBuilder.Length < contentLength)
+    {
+      var read = stream.Read(chunk, 0, chunk.Length);
+      if (read <= 0)
+        break;
+      bodyBuilder.Write(chunk, 0, read);
+    }
+
+    var bodyBytes = bodyBuilder.ToArray();
+    if (bodyBytes.Length > contentLength && contentLength > 0)
+      Array.Resize(ref bodyBytes, contentLength);
+
+    var body = bodyBytes.Length == 0 ? string.Empty : Encoding.UTF8.GetString(bodyBytes);
+    return (method, path, body);
+  }
+
+  private static int IndexOfHeaderEnd(byte[] bytes)
+  {
+    for (var i = 0; i + 3 < bytes.Length; i++)
+    {
+      if (bytes[i] == (byte)'\r' && bytes[i + 1] == (byte)'\n'
+          && bytes[i + 2] == (byte)'\r' && bytes[i + 3] == (byte)'\n')
+        return i;
+    }
+
+    return -1;
+  }
+
+  private static void HandleRequest(NetworkStream stream, string method, string path, string body)
   {
     try
     {
-      var path = context.Request.Url?.AbsolutePath.TrimEnd('/') ?? string.Empty;
+      path = (path ?? string.Empty).TrimEnd('/');
       if (string.Equals(path, "/api/health", StringComparison.OrdinalIgnoreCase)
           || string.Equals(path, "/health", StringComparison.OrdinalIgnoreCase))
       {
-        WriteJson(context, 200, new { ok = true, role = "warehouse-hub", version = WarehouseSqliteStore.GetCurrentVersion() });
+        WriteJson(stream, 200, new { ok = true, role = "warehouse-hub", version = WarehouseSqliteStore.GetCurrentVersion() });
         return;
+      }
+
+      if (string.Equals(path, "/api/presence", StringComparison.OrdinalIgnoreCase))
+      {
+        if (method.Equals("GET", StringComparison.OrdinalIgnoreCase))
+        {
+          WarehousePresenceRegistry.Heartbeat(WarehousePresenceRegistry.CreateLocalPeer("host"));
+          WriteJson(stream, 200, new WarehousePresenceSnapshotDto
+          {
+            Peers = WarehousePresenceRegistry.GetActive().ToList()
+          });
+          return;
+        }
+
+        if (method.Equals("POST", StringComparison.OrdinalIgnoreCase)
+            || method.Equals("PUT", StringComparison.OrdinalIgnoreCase))
+        {
+          var peer = JsonSerializer.Deserialize<WarehousePresenceDto>(body, JsonOptions)
+                     ?? throw new InvalidOperationException("Ungültige Präsenz-Daten.");
+          if (string.IsNullOrWhiteSpace(peer.Role))
+            peer.Role = "client";
+          WarehousePresenceRegistry.Heartbeat(peer);
+          WarehousePresenceRegistry.Heartbeat(WarehousePresenceRegistry.CreateLocalPeer("host"));
+          WriteJson(stream, 200, new WarehousePresenceSnapshotDto
+          {
+            Peers = WarehousePresenceRegistry.GetActive().ToList()
+          });
+          return;
+        }
       }
 
       if (string.Equals(path, "/api/warehouse", StringComparison.OrdinalIgnoreCase))
       {
-        if (context.Request.HttpMethod.Equals("GET", StringComparison.OrdinalIgnoreCase))
+        if (method.Equals("GET", StringComparison.OrdinalIgnoreCase))
         {
           var (version, items) = WarehouseSqliteStore.Load();
-          WriteJson(context, 200, ToDto(version, items));
+          WriteJson(stream, 200, ToDto(version, items));
           return;
         }
 
-        if (context.Request.HttpMethod.Equals("PUT", StringComparison.OrdinalIgnoreCase))
+        if (method.Equals("PUT", StringComparison.OrdinalIgnoreCase))
         {
-          using var reader = new StreamReader(context.Request.InputStream, context.Request.ContentEncoding);
-          var body = reader.ReadToEnd();
           var snapshot = JsonSerializer.Deserialize<WarehouseSnapshotDto>(body, JsonOptions)
                          ?? throw new InvalidOperationException("Ungültiger Lager-Inhalt.");
           var items = FromDto(snapshot.Items);
@@ -138,12 +260,12 @@ internal static class WarehouseHubServer
           {
             var next = WarehouseSqliteStore.Save(items, snapshot.Version);
             var (_, loaded) = WarehouseSqliteStore.Load();
-            WriteJson(context, 200, ToDto(next, loaded));
+            WriteJson(stream, 200, ToDto(next, loaded));
           }
           catch (InvalidOperationException ex)
           {
             var (version, current) = WarehouseSqliteStore.Load();
-            WriteJson(context, 409, new
+            WriteJson(stream, 409, new
             {
               error = ex.Message,
               snapshot = ToDto(version, current)
@@ -154,11 +276,11 @@ internal static class WarehouseHubServer
         }
       }
 
-      WriteJson(context, 404, new { error = "Nicht gefunden." });
+      WriteJson(stream, 404, new { error = "Nicht gefunden." });
     }
     catch (Exception ex)
     {
-      try { WriteJson(context, 500, new { error = ex.Message }); }
+      try { WriteJson(stream, 500, new { error = ex.Message }); }
       catch { }
     }
   }
@@ -187,43 +309,27 @@ internal static class WarehouseHubServer
       ReservedQuantity = item.ReservedQuantity
     }).ToList();
 
-  private static IEnumerable<string> BuildPrefixes(int port, bool includeWildcard)
-  {
-    var prefixes = new List<string>
-    {
-      $"http://127.0.0.1:{port}/",
-      $"http://localhost:{port}/"
-    };
-
-    try
-    {
-      foreach (var address in Dns.GetHostAddresses(Dns.GetHostName()))
-      {
-        if (address.AddressFamily != System.Net.Sockets.AddressFamily.InterNetwork)
-          continue;
-        if (IPAddress.IsLoopback(address))
-          continue;
-        prefixes.Add($"http://{address}:{port}/");
-      }
-    }
-    catch
-    {
-    }
-
-    if (includeWildcard)
-      prefixes.Add($"http://+:{port}/");
-
-    return prefixes;
-  }
-
-  private static void WriteJson(HttpListenerContext context, int statusCode, object payload)
+  private static void WriteJson(NetworkStream stream, int statusCode, object payload)
   {
     var json = JsonSerializer.Serialize(payload, JsonOptions);
     var bytes = Encoding.UTF8.GetBytes(json);
-    context.Response.StatusCode = statusCode;
-    context.Response.ContentType = "application/json; charset=utf-8";
-    context.Response.ContentLength64 = bytes.Length;
-    context.Response.OutputStream.Write(bytes, 0, bytes.Length);
-    context.Response.OutputStream.Close();
+    var reason = statusCode switch
+    {
+      200 => "OK",
+      404 => "Not Found",
+      409 => "Conflict",
+      500 => "Internal Server Error",
+      _ => "OK"
+    };
+    var header = $"HTTP/1.1 {statusCode} {reason}\r\n"
+                 + "Content-Type: application/json; charset=utf-8\r\n"
+                 + "Content-Length: " + bytes.Length + "\r\n"
+                 + "Connection: close\r\n"
+                 + "Access-Control-Allow-Origin: *\r\n"
+                 + "\r\n";
+    var headerBytes = Encoding.ASCII.GetBytes(header);
+    stream.Write(headerBytes, 0, headerBytes.Length);
+    stream.Write(bytes, 0, bytes.Length);
+    stream.Flush();
   }
 }

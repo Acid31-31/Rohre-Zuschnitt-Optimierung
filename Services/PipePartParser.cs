@@ -7,7 +7,7 @@ namespace RohreZuschnittOptimierung.Services;
 internal static class PipePartParser
 {
   private static readonly Regex TubeKeywordRegex = new(
-    @"\b(?:TUBE|PIPE|ROHR(?:PROFIL)?|QUADRATROHR|VIERKANTROHR|RUNDROHR|RECHTECKROHR|PROFILROHR|RHS|SHS|CHS)\b",
+    @"\b(?:TUBE|PIPE|ROHR(?:PROFIL)?|QUADRATROHR|VIERKANTROHR|RUNDROHR|RECHTECKROHR|PROFILROHR|RHS|SHS|CHS|C[\s\-]?PROFIL|U[\s\-]?PROFIL|T[\s\-]?PROFIL|UNP|UPE|UPN|VOLLSTANGE|VOLLMATERIAL|RUNDSTAHL)\b",
     RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
 
   private static readonly Regex SheetKeywordRegex = new(
@@ -50,6 +50,10 @@ internal static class PipePartParser
     if (string.IsNullOrWhiteSpace(text))
       return null;
 
+    var preferC = Regex.IsMatch(text, @"\bC[\s\-/]?Profil", RegexOptions.IgnoreCase);
+    var preferU = Regex.IsMatch(text, @"\b(?:U[\s\-/]?Profil|UNP|UPE|UPN)\b", RegexOptions.IgnoreCase);
+    var preferT = Regex.IsMatch(text, @"\bT[\s\-/]?Profil", RegexOptions.IgnoreCase);
+
     foreach (Match match in ProfileRegex.Matches(text))
     {
       var a = ParseNumber(match.Groups["a"].Value);
@@ -57,6 +61,22 @@ internal static class PipePartParser
       var t = ParseNumber(match.Groups["t"].Value);
       if (t is < 0.4 or > 20)
         continue;
+
+      if (preferC)
+      {
+        var cProf = PipeStockCatalog.TryMatch(PipeProfileKind.CProfile, a, b, t);
+        if (cProf is not null) return cProf;
+      }
+      if (preferU)
+      {
+        var uProf = PipeStockCatalog.TryMatch(PipeProfileKind.UProfile, a, b, t);
+        if (uProf is not null) return uProf;
+      }
+      if (preferT)
+      {
+        var tProf = PipeStockCatalog.TryMatch(PipeProfileKind.TProfile, a, b, t);
+        if (tProf is not null) return tProf;
+      }
 
       if (Math.Abs(a - b) < 0.15)
       {
@@ -68,6 +88,13 @@ internal static class PipePartParser
       var rect = PipeStockCatalog.TryMatch(PipeProfileKind.Rectangular, a, b, t);
       if (rect is not null)
         return rect;
+
+      var cFallback = PipeStockCatalog.TryMatch(PipeProfileKind.CProfile, a, b, t);
+      if (cFallback is not null) return cFallback;
+      var uFallback = PipeStockCatalog.TryMatch(PipeProfileKind.UProfile, a, b, t);
+      if (uFallback is not null) return uFallback;
+      var tFallback = PipeStockCatalog.TryMatch(PipeProfileKind.TProfile, a, b, t);
+      if (tFallback is not null) return tFallback;
 
       var round = PipeStockCatalog.TryMatch(PipeProfileKind.Round, a, null, t);
       if (round is not null && Math.Abs(a - b) < 0.15)

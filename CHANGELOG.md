@@ -3,6 +3,96 @@
 Jede Revision listet die sichtbaren Änderungen für Nutzer.
 Beim Release liest `publish-github-release.ps1` den Abschnitt zur aktuellen Revision.
 
+## R37
+
+- Zuschnittplan: Rohre als Rechtecke, Farbe folgt der Gehrung (nicht der Länge)
+- Gleiche Gehrung am Stoß = eine schwarze Schräge (ein Schnitt für beide Enden)
+- 90°-Schnitte als schwarze Senkrechte in der Zeichnung (sonst fehlen sie in der Liste)
+- Keine Kästchenränder und keine roten Schnittfugen in der Stangenzeichnung
+- PDF quer, Titel mit Profil und Format; Sägetabelle mit Anschlag, Winkel und Hinweis
+
+## R36
+
+- Zeichnungserkennung: C-/U-/T-Profile und Vollstangen werden erkannt
+- Excel-Positionen: gleiche Profilarten zuordenbar
+
+## R35
+
+- Auftragsimport: mehrere Rohrprofile werden erkannt und getrennt berechnet
+- Teilliste zeigt das Profil je Zeichnung
+- Optimieren erzeugt Zuschnittplan je Profil (nicht mehr alles auf ein Maß)
+
+## R34
+
+- Lager: Löschen wird jetzt auf allen PCs übernommen (nicht mehr durch Sync rückgängig gemacht)
+- Neue Materialien anderer PCs bleiben beim Speichern erhalten
+
+## R33
+
+- Lager-Speichern auf Netzwerkordner stabilisiert (lokales Temp + Copy statt SMB-Replace)
+- Fehler „Nicht genügend Systemressourcen“ / Netzwerk beschäftigt behoben
+- Online-Heartbeat und Lager-Abfrage entlasten das Netzlaufwerk
+## R32
+
+- Gemeinsames Lager: mehrere PCs können gleichzeitig anlegen/ändern (kein Datei-Sperr-Fehler mehr)
+- Änderungen erscheinen automatisch auf allen offenen Lagern
+
+- Start-Hänger auf PCs mit gemeinsamem Lager-Ordner behoben (kein UI-Block mehr beim Aktivieren/Laden)
+- Lager-Datei: Timeout beim Öffnen, damit SMB-Hänger die App nicht einfrieren
+- Update-Prüfung beim Start mit kurzem Timeout (max. 12 s)
+- Lager-Polling ohne DispatcherTimer vom Hintergrund-Thread
+## R31
+
+- Start-Hänger behoben: Lager/Netzwerk blockiert die Oberfläche nach Update nicht mehr
+- Gemeinsamer Lager-Ordner: keine Endlosschleife bei Online-Anzeige
+- Lager-Init und Online-Status laufen im Hintergrund
+- FileSystemWatcher auf Netzlaufwerken deaktiviert (Polling statt Hänger)
+## R30
+
+- Gemeinsamer Lager-Ordner: alle PCs nutzen denselben Netzwerkordner (auch wenn ein PC aus ist)
+- Lager-Datei `pipe-warehouse.xml` wird automatisch im gewählten Ordner angelegt
+- Online-Anzeige in der Kopfzeile: wer gerade mit dem Lager verbunden ist
+- Neue Lager-Profile: C-/U-/T-Profile und Vollstangen Ø 5–15 mm (Standardlänge 6000 mm)
+- Lager-Zentrale ohne Admin-Rechte (TcpListener); SQLite bei Netzlaufwerk lokal abgelegt
+## R29
+
+- Update-Hotfix: nur noch standalone-Pakete (kein .NET-Installationsdialog mehr)
+- Update-Installation kopiert jetzt alle Dateien vollständig
+- Desktop-Verknüpfung und Logo werden nach Update korrekt repariert
+- Update-Fenster mit lesbarem Fortschritt und Restlaufzeit
+
+## R28
+
+- Werkstattzeichnung A3 im Tesla-Format mit ISO-Schriftfeld und korrektem Logo
+- Mehrere Rohre: alle Zeichnungen in einer PDF (Seite 1, 2, 3 …)
+- Schriftfeld-Text neben dem Logo automatisch an die Zelle angepasst
+- Kopfzeilen-Buttons (Update, Einstellungen, Info …) mit lesbarer Schriftgröße
+- Z-Freigabe: alte Revisionen werden nach `Archiv\` verschoben (nicht gelöscht)
+- Nur noch **ein** USB-Ordner (`Z:\Rohre-Zuschnitt\`) und **eine** Absicherung (`Z:\Programierung\Rohre-Zuschnitt-Absicherung\`)
+
+## R27
+
+- App-Icon korrigiert: nur Hexagon-R (ohne Textreste), zentriert, abgerundeter schwarzer Hintergrund
+
+## R26
+
+- App-Icon: Hexagon-R-Logo zentriert, schwarzer Hintergrund mit abgerundeten Ecken (Desktop-Verknüpfung)
+
+## R25
+
+- Update-Fix: Self-Contained-Pakete kopieren jetzt auch `.json` (runtimeconfig/deps) – sonst .NET-Installationsdialog nach Update
+- Desktop-/Festinstallation wird durch Releases nicht mehr angefasst
+
+## R24
+
+- Desktop-Verknüpfung und App-Icon nutzen dasselbe Hexagon-R-Logo wie in der App
+
+## R23
+
+- Standalone-Paket: läuft auf anderen PCs ohne separate .NET-Installation
+- USB/GitHub-Paket ohne KI-Ordner (Vision-KI separat installieren) – schnelle Updates
+- Diagnose-Start.bat prüft EXE und Start
+
 ## R22
 
 - Einstellungen aufgeteilt: Optimierung, Netzwerk, PDF-Zuschnittplan, Vision-KI (eigene Fenster)

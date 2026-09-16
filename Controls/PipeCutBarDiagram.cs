@@ -62,103 +62,79 @@ public sealed class PipeCutBarDiagram : FrameworkElement
     var width = Math.Max(ActualWidth, 300);
     const double marginLeft = 8;
     const double marginRight = 8;
-    const double top = 38;
+    const double top = 36;
     const double pipeHeight = 42;
     const double rulerY = top + pipeHeight + 34;
 
     var drawableWidth = width - marginLeft - marginRight;
     var visibleLengthMm = BarPlan.StockLengthMm > 0 ? BarPlan.StockLengthMm : StockLengthMm;
     var scale = drawableWidth / visibleLengthMm;
-    var centerY = top + pipeHeight / 2;
-    var halfH = pipeHeight / 2;
     var pixelsPerDip = VisualTreeHelper.GetDpi(this).PixelsPerDip;
 
-    var stockOutline = GetBrush("DiagramStockOutlineBrush", "#666666");
     var wasteFill = GetBrush("DiagramWasteBrush", "#4A4A4A");
-    var pieceFill = GetBrush("DiagramPieceBrush", "#4DA3FF");
-    var pieceFillAlt = GetBrush("DiagramPieceAltBrush", "#22C55E");
-    var pieceBorder = GetBrush("DiagramPieceBorderBrush", "#2563EB");
-    var pieceBorderAlt = GetBrush("DiagramPieceAltBrush", "#16A34A");
-    var kerfFill = GetBrush("DiagramKerfBrush", "#E05252");
     var labelBrush = GetBrush("TextPrimaryBrush", "#E8E8E8");
     var mutedBrush = GetBrush("TextMutedBrush", "#9A9A9A");
-    var assemblyBrush = GetBrush("DiagramAssemblyMiterBrush", "#F59E0B");
+    var cutLineBrush = new SolidColorBrush(Colors.Black);
 
     var visibleStockWidth = visibleLengthMm * scale;
-    DrawPipeBody(dc, marginLeft, top, visibleStockWidth, pipeHeight, stockOutline, wasteFill, scale, BarPlan.UsedMm);
+    var usedWidth = Math.Min(BarPlan.UsedMm * scale, visibleStockWidth);
+    if (visibleStockWidth - usedWidth > 1)
+      dc.DrawRectangle(wasteFill, null, new Rect(marginLeft + usedWidth, top, visibleStockWidth - usedWidth, pipeHeight));
 
     var oriented = BarPlan.OrientedPieces.Count > 0
       ? BarPlan.OrientedPieces.ToList()
       : MiterPairingService.OrientPiecesOnBar(BarPlan.Pieces);
-
     var cutAngles = MiterPairingService.BuildCutAnglesOnBar(oriented).ToList();
+    var gehrungIndex = MiterPairingService.GehrungColorIndex(oriented);
+    var lefts = new double[oriented.Count];
+    var rights = new double[oriented.Count];
     var x = marginLeft;
-    var sharedCuts = new List<(double X, double Angle)>();
+    var cutPen = new Pen(cutLineBrush, 2);
 
     for (var i = 0; i < oriented.Count; i++)
     {
       var piece = oriented[i];
-      var pieceWidth = piece.LengthMm * scale;
-      var sharedLeft = i > 0 && MiterPairingService.IsSharedJunctionCut(oriented, cutAngles, i);
-      var sharedRight = i < oriented.Count - 1 && MiterPairingService.IsSharedJunctionCut(oriented, cutAngles, i + 1);
+      var pieceWidth = Math.Max(piece.LengthMm * scale, 1);
+      lefts[i] = x;
+      rights[i] = x + pieceWidth;
+      var (fill, _) = BrushForGehrung(MiterPairingService.PrimaryMiterDeg(piece), gehrungIndex);
+      dc.DrawRectangle(fill, null, new Rect(x, top, pieceWidth, pipeHeight));
 
-      var fill = i % 2 == 0 ? pieceFill : pieceFillAlt;
-      var border = i % 2 == 0 ? pieceBorder : pieceBorderAlt;
-      var geometry = CreatePieceGeometry(
-        x,
-        x + pieceWidth,
-        centerY,
-        halfH,
-        piece.MiterLeftDeg,
-        piece.MiterRightDeg,
-        sharedLeft);
-
-      dc.DrawGeometry(fill, new Pen(border, 1.6), geometry);
-      DrawPieceHighlight(dc, geometry, border);
-
-      if (i == 0)
-        DrawEndCutMarker(dc, x, centerY, halfH, cutAngles.FirstOrDefault(90), labelBrush, pixelsPerDip, isStart: true);
-
-      if (sharedRight)
-        sharedCuts.Add((x + pieceWidth, cutAngles[i + 1]));
-
-      var lengthLabel = string.IsNullOrWhiteSpace(piece.DrawingName)
-        ? $"Rohr {i + 1}\n{piece.LengthMm:0} mm"
-        : $"Rohr {i + 1} · {piece.DrawingName}\n{piece.LengthMm:0} mm";
-
-      DrawCenteredText(dc, lengthLabel, new Rect(x, top + 2, pieceWidth, 24), labelBrush, 10, pixelsPerDip);
-
-      x += pieceWidth;
-
-      if (i < oriented.Count - 1 && !MiterPairingService.IsSharedJunctionCut(oriented, cutAngles, i + 1) && KerfMm > 0)
+      if (pieceWidth >= 40)
       {
-        var kerfWidth = Math.Max(KerfMm * scale, 2);
-        dc.DrawRectangle(kerfFill, null, new Rect(x, top, kerfWidth, pipeHeight));
         DrawCenteredText(
           dc,
-          $"{KerfMm:0} mm",
-          new Rect(x - 4, top + pipeHeight / 2 - 8, kerfWidth + 8, 16),
-          kerfFill,
-          7,
+          $"{i + 1}\n{piece.LengthMm:0} mm",
+          new Rect(x, top + 8, pieceWidth, 26),
+          labelBrush,
+          10,
           pixelsPerDip);
-        x += kerfWidth;
       }
-    }
+      else if (pieceWidth >= 14)
+      {
+        DrawCenteredText(dc, $"{i + 1}", new Rect(x, top + 12, pieceWidth, 16), labelBrush, 9, pixelsPerDip);
+      }
 
-    foreach (var (cutX, angle) in sharedCuts)
-      DrawSharedCutLine(dc, cutX, centerY, halfH, angle, assemblyBrush, pixelsPerDip);
+      x += pieceWidth;
+    }
 
     if (oriented.Count > 0)
     {
-      DrawEndCutMarker(
+      DrawSawCut(dc, cutPen, lefts[0], top, pipeHeight, cutAngles[0]);
+      for (var i = 0; i < oriented.Count - 1; i++)
+        DrawSawCut(dc, cutPen, rights[i], top, pipeHeight, cutAngles[i + 1]);
+      DrawSawCut(dc, cutPen, rights[^1], top, pipeHeight, cutAngles[^1]);
+    }
+
+    foreach (var run in GehrungRuns(oriented, lefts, rights))
+    {
+      DrawCenteredText(
         dc,
-        x,
-        centerY,
-        halfH,
-        cutAngles.LastOrDefault(90),
+        $"{run.Angle:0}°",
+        new Rect(run.Left, top - 18, Math.Max(run.Right - run.Left, 20), 16),
         labelBrush,
-        pixelsPerDip,
-        isStart: false);
+        11,
+        pixelsPerDip);
     }
 
     var wasteWidth = Math.Max((visibleLengthMm - BarPlan.UsedMm) * scale, 0);
@@ -175,152 +151,81 @@ public sealed class PipeCutBarDiagram : FrameworkElement
 
     DrawRuler(dc, marginLeft, visibleStockWidth, rulerY, visibleLengthMm, mutedBrush, scale, pixelsPerDip, BarPlan.UsedMm);
 
-    var middleInfo = cutAngles.Count > 0
-      ? string.Join(" · ", cutAngles.Select(a => $"{a:0}°"))
-      : "90°";
-
     DrawCenteredText(
       dc,
-      $"Gesamtlänge {visibleLengthMm:0} mm · Schnittfolge: {middleInfo} · Säge {BarPlan.SawAdjustments}× verstellen",
-      new Rect(marginLeft, 8, drawableWidth, 18),
+      $"Gesamtlänge {visibleLengthMm:0} mm · Farbe = Gehrung · Rechteck = Rohr · Schräge = ein Schnitt · Säge {BarPlan.SawAdjustments}× verstellen",
+      new Rect(marginLeft, 4, drawableWidth, 16),
       mutedBrush,
       10,
       pixelsPerDip);
   }
 
-  private static void DrawPieceHighlight(DrawingContext dc, Geometry geometry, Brush outline)
+  private static bool IsMiterAngle(double deg) => deg > 0.5 && Math.Abs(deg - 90) > 0.5;
+
+  private static void DrawSawCut(DrawingContext dc, Pen pen, double x, double top, double height, double angleDeg)
   {
-    var highlightPen = new Pen(new SolidColorBrush(Color.FromArgb(90, 255, 255, 255)), 0.8);
-    dc.DrawGeometry(null, highlightPen, geometry);
-  }
-
-  private static void DrawSharedCutLine(
-    DrawingContext dc,
-    double x,
-    double centerY,
-    double halfH,
-    double angleDeg,
-    Brush brush,
-    double pixelsPerDip)
-  {
-    var offset = halfH * Math.Tan(ToRadians(angleDeg));
-    var yTop = centerY - halfH;
-    var yBottom = centerY + halfH;
-
-    var cutPen = new Pen(brush, 3);
-    dc.DrawLine(cutPen, new Point(x, yBottom), new Point(x - offset, yTop));
-
-    DrawCenteredText(
-      dc,
-      $"{angleDeg:0}°\ngemeinsam",
-      new Rect(x - offset - 28, centerY - 18, offset + 56, 36),
-      brush,
-      9,
-      pixelsPerDip);
-  }
-
-  private static void DrawEndCutMarker(
-    DrawingContext dc,
-    double x,
-    double centerY,
-    double halfH,
-    double angleDeg,
-    Brush brush,
-    double pixelsPerDip,
-    bool isStart)
-  {
-    var yTop = centerY - halfH;
-    var yBottom = centerY + halfH;
-    var pen = new Pen(brush, 1.5);
-    dc.DrawLine(pen, new Point(x, yTop - 4), new Point(x, yBottom + 4));
-
-    var label = new FormattedText(
-      $"{angleDeg:0}°",
-      System.Globalization.CultureInfo.CurrentCulture,
-      FlowDirection.LeftToRight,
-      new Typeface("Segoe UI Semibold"),
-      8,
-      brush,
-      pixelsPerDip);
-
-    var drawX = isStart ? x + 3 : x - label.Width - 3;
-    dc.DrawText(label, new Point(drawX, yTop - label.Height - 2));
-  }
-
-  private static void DrawPipeBody(
-    DrawingContext dc,
-    double x,
-    double y,
-    double width,
-    double height,
-    Brush outline,
-    Brush wasteFill,
-    double scale,
-    double usedMm)
-  {
-    var rect = new Rect(x, y, width, height);
-    dc.DrawRoundedRectangle(null, new Pen(outline, 1.5), rect, 4, 4);
-
-    var usedWidth = Math.Min(usedMm * scale, width);
-    if (usedWidth > 0)
-      dc.DrawLine(new Pen(outline, 0.8), new Point(x, y + height / 2), new Point(x + usedWidth, y + height / 2));
-
-    var wasteWidth = width - usedWidth;
-    if (wasteWidth > 1)
-      dc.DrawRectangle(wasteFill, null, new Rect(x + usedWidth, y, wasteWidth, height));
-  }
-
-  private static Geometry CreatePieceGeometry(
-    double xStart,
-    double xEnd,
-    double centerY,
-    double halfH,
-    double leftAssemblyMiterDeg,
-    double rightAssemblyMiterDeg,
-    bool sharedLeftEdge = false)
-  {
-    var yTop = centerY - halfH;
-    var yBottom = centerY + halfH;
-    var leftOffset = halfH * Math.Tan(ToRadians(leftAssemblyMiterDeg));
-    var rightOffset = halfH * Math.Tan(ToRadians(rightAssemblyMiterDeg));
-
-    var leftTopX = leftAssemblyMiterDeg > 0.1 && sharedLeftEdge
-      ? xStart - leftOffset
-      : xStart + leftOffset;
-
-    var figure = new PathFigure
+    if (IsMiterAngle(angleDeg))
     {
-      StartPoint = new Point(xStart, yBottom),
-      IsClosed = true
-    };
+      DrawMiterSlash(dc, pen, x, top, height, angleDeg);
+      return;
+    }
 
-    figure.Segments.Add(new LineSegment(new Point(leftTopX, yTop), true));
-    figure.Segments.Add(new LineSegment(new Point(xEnd - rightOffset, yTop), true));
-    figure.Segments.Add(new LineSegment(new Point(xEnd, yBottom), true));
-
-    return new PathGeometry(new[] { figure });
+    dc.DrawLine(pen, new Point(x, top), new Point(x, top + height));
   }
 
-  private static void DrawMiterLabel(
-    DrawingContext dc,
-    double x,
-    double y,
-    double angleDeg,
-    Brush brush,
-    double pixelsPerDip,
-    bool isLeft)
+  private static void DrawMiterSlash(DrawingContext dc, Pen pen, double x, double top, double height, double angleDeg)
   {
-    var text = new FormattedText(
-      $"{angleDeg:0}°",
-      System.Globalization.CultureInfo.CurrentCulture,
-      FlowDirection.LeftToRight,
-      new Typeface("Segoe UI Semibold"),
-      9,
-      brush,
-      pixelsPerDip);
+    var offset = Math.Min(14, height * Math.Tan(Math.Min(angleDeg, 60) * Math.PI / 180d) / 2);
+    dc.DrawLine(pen, new Point(x, top + height), new Point(x - offset, top));
+  }
 
-    var drawX = isLeft ? x + 2 : x - text.Width - 2;
-    dc.DrawText(text, new Point(drawX, y - text.Height));
+  private readonly record struct GehrungRun(double Angle, double Left, double Right);
+
+  private static List<GehrungRun> GehrungRuns(
+    IReadOnlyList<OrientedCutPiece> pieces,
+    IReadOnlyList<double> lefts,
+    IReadOnlyList<double> rights)
+  {
+    var runs = new List<GehrungRun>();
+    if (pieces.Count == 0)
+      return runs;
+
+    var start = 0;
+    var angle = MiterPairingService.PrimaryMiterDeg(pieces[0]);
+    for (var i = 1; i <= pieces.Count; i++)
+    {
+      var next = i < pieces.Count ? MiterPairingService.PrimaryMiterDeg(pieces[i]) : double.NaN;
+      if (i < pieces.Count && Math.Abs(next - angle) < 0.1)
+        continue;
+
+      if (IsMiterAngle(angle) && rights[i - 1] - lefts[start] >= 28)
+        runs.Add(new GehrungRun(angle, lefts[start], rights[i - 1]));
+
+      if (i < pieces.Count)
+      {
+        start = i;
+        angle = next;
+      }
+    }
+
+    return runs;
+  }
+
+  private static (Brush Fill, Brush Border) BrushForGehrung(
+    double miterDeg,
+    IReadOnlyDictionary<double, int> gehrungIndex)
+  {
+    if (miterDeg <= 0.1 || Math.Abs(miterDeg - 90) < 0.1)
+      return (new SolidColorBrush(Color.FromRgb(0xD2, 0xD2, 0xD2)), new SolidColorBrush(Color.FromRgb(0x88, 0x88, 0x88)));
+
+    var index = gehrungIndex.TryGetValue(miterDeg, out var mapped) ? mapped : 0;
+    return index switch
+    {
+      0 => (new SolidColorBrush(Color.FromRgb(0x4D, 0xA3, 0xFF)), new SolidColorBrush(Color.FromRgb(0x25, 0x63, 0xEB))),
+      1 => (new SolidColorBrush(Color.FromRgb(0x22, 0xC5, 0x5E)), new SolidColorBrush(Color.FromRgb(0x16, 0xA3, 0x4A))),
+      2 => (new SolidColorBrush(Color.FromRgb(0xF5, 0x9E, 0x0B)), new SolidColorBrush(Color.FromRgb(0xB4, 0x64, 0x0A))),
+      _ => (new SolidColorBrush(Color.FromRgb(0xA8, 0x55, 0xF7)), new SolidColorBrush(Color.FromRgb(0x6E, 0x32, 0xB4)))
+    };
   }
 
   private static void DrawCenteredText(
@@ -402,8 +307,4 @@ public sealed class PipeCutBarDiagram : FrameworkElement
 
     return new SolidColorBrush((Color)ColorConverter.ConvertFromString(fallbackHex)!);
   }
-
-  private static double ClampMiter(double angle) => Math.Clamp(angle, 0, 89.9);
-
-  private static double ToRadians(double degrees) => degrees * Math.PI / 180d;
 }

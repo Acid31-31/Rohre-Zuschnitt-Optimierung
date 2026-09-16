@@ -43,7 +43,7 @@ internal static class BundledAiRuntime
     if (!IsBundled)
     {
       return (false,
-        "Lokale KI fehlt im Programmordner (AI\\ollama). Bitte R18/USB-Version mit KI-Paket verwenden.");
+        "Lokale KI fehlt (AI\\ollama). Vision-KI separat installieren – nicht im App-Update enthalten.");
     }
 
     if (!TryValidateLocalUrl(ResolveBaseUrl(settings), out var baseUri, out var urlError))

@@ -82,7 +82,7 @@ public sealed class PipeWarehouseStockItem : INotifyPropertyChanged
   }
 
   public string LengthLabel =>
-    Math.Abs(LengthMm - 6000) < 0.5 ? "6.000 mm (Original)" : $"{LengthMm:0} mm";
+    Math.Abs(LengthMm - CutOptimizationDefaults.StockLengthMm) < 0.5 ? "6.000 mm (Original)" : $"{LengthMm:0} mm";
 
   public bool IsOriginalStock => Math.Abs(LengthMm - CutOptimizationDefaults.StockLengthMm) < 0.5;
 

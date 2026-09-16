@@ -25,6 +25,7 @@ public partial class PipeWarehouseWindow : Window
   private string _textFilter = string.Empty;
   private StockFilterMode _stockFilter = StockFilterMode.All;
   private bool _syncingSelectAll;
+  private HashSet<string> _loadedStockKeys = new(StringComparer.OrdinalIgnoreCase);
 
   public PipeWarehouseWindow()
   {
@@ -97,6 +98,11 @@ public partial class PipeWarehouseWindow : Window
       clone.PropertyChanged += StockItem_PropertyChanged;
       _allItems.Add(clone);
     }
+
+    _loadedStockKeys = _allItems
+      .Where(i => !string.IsNullOrWhiteSpace(i.ProfileId) && i.LengthMm > 0)
+      .Select(WarehouseSharedFolderStore.BuildStockKey)
+      .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
     _view.Refresh();
     UpdateSelectAllCheckBox();
@@ -445,7 +451,8 @@ public partial class PipeWarehouseWindow : Window
       .ToList();
 
     PipeWarehouseStore.RefreshDisplayNames(items);
-    PipeWarehouseStore.Save(items);
+    PipeWarehouseStore.Save(items, _loadedStockKeys);
+    LoadItems();
   }
 
   private void CommitGridEdits()

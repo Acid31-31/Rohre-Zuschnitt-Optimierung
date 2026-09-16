@@ -4,6 +4,9 @@ public sealed class CutPartEntry
 {
   public string? DrawingName { get; set; }
   public string? PdfPath { get; set; }
+  public string? ProfileId { get; set; }
+  public string? Material { get; set; }
+  public string? ProfileLabel { get; set; }
   public double LengthMm { get; set; }
   public double MiterEnd1Deg { get; set; }
   public double MiterEnd2Deg { get; set; }
@@ -15,6 +18,11 @@ public sealed class CutPartEntry
 
   public bool HasSingleMiter =>
     (MiterEnd1Deg > 0.1 && MiterEnd2Deg <= 0.1) || (MiterEnd2Deg > 0.1 && MiterEnd1Deg <= 0.1);
+
+  public string ProfileDisplay =>
+    string.IsNullOrWhiteSpace(ProfileLabel)
+      ? (string.IsNullOrWhiteSpace(ProfileId) ? "-" : ProfileId)
+      : ProfileLabel!;
 }
 
 public static class MiterNotation
@@ -39,7 +47,6 @@ public static class MiterNotation
   public static bool HasBothMiters(double end1Deg, double end2Deg) =>
     end1Deg > 0.1 && end2Deg > 0.1;
 
-  /// <summary>0° und 90° = lotrecht. Gehrung nur 0,1° … 89,9°.</summary>
   public static double NormalizeInputAngle(double angleDeg)
   {
     if (angleDeg < 0)

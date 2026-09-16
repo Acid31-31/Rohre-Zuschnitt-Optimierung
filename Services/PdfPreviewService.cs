@@ -8,12 +8,15 @@ namespace RohreZuschnittOptimierung.Services;
 
 internal static class PdfPreviewService
 {
-  public static bool TryRenderFirstPage(string pdfPath, out BitmapSource? image, out string error, int dpi = 110)
+  public static bool TryRenderFirstPage(string pdfPath, out BitmapSource? image, out string error, int dpi = 110) =>
+    TryRenderPage(pdfPath, 0, out image, out error, dpi);
+
+  public static bool TryRenderPage(string pdfPath, int pageIndex, out BitmapSource? image, out string error, int dpi = 110)
   {
     image = null;
     error = string.Empty;
 
-    if (!TryRenderFirstPagePng(pdfPath, out var pngBytes, out error, dpi))
+    if (!TryRenderPagePng(pdfPath, pageIndex, out var pngBytes, out error, dpi))
       return false;
 
     try
@@ -32,7 +35,10 @@ internal static class PdfPreviewService
     }
   }
 
-  public static bool TryRenderFirstPagePng(string pdfPath, out byte[]? pngBytes, out string error, int dpi = 120)
+  public static bool TryRenderFirstPagePng(string pdfPath, out byte[]? pngBytes, out string error, int dpi = 120) =>
+    TryRenderPagePng(pdfPath, 0, out pngBytes, out error, dpi);
+
+  public static bool TryRenderPagePng(string pdfPath, int pageIndex, out byte[]? pngBytes, out string error, int dpi = 120)
   {
     pngBytes = null;
     error = string.Empty;
@@ -43,11 +49,23 @@ internal static class PdfPreviewService
       return false;
     }
 
+    if (pageIndex < 0)
+    {
+      error = "Ungültige PDF-Seite.";
+      return false;
+    }
+
     try
     {
       var scaling = Math.Max(0.5, dpi / 72.0);
       using var docReader = DocLib.Instance.GetDocReader(File.ReadAllBytes(pdfPath), new PageDimensions(scaling));
-      using var pageReader = docReader.GetPageReader(0);
+      if (pageIndex >= docReader.GetPageCount())
+      {
+        error = "PDF-Seite nicht gefunden.";
+        return false;
+      }
+
+      using var pageReader = docReader.GetPageReader(pageIndex);
       var width = pageReader.GetPageWidth();
       var height = pageReader.GetPageHeight();
       if (width <= 0 || height <= 0)

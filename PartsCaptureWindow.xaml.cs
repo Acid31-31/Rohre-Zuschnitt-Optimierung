@@ -242,6 +242,9 @@ public partial class PartsCaptureWindow : Window
     {
       DrawingName = _pendingDrawingName,
       PdfPath = _pendingPdfPath,
+      ProfileId = _profile?.Id ?? _editingPart?.ProfileId,
+      ProfileLabel = _profile?.FullLabel ?? _editingPart?.ProfileLabel,
+      Material = _material ?? _editingPart?.Material,
       LengthMm = lengthMm,
       MiterEnd1Deg = miterEnd1,
       MiterEnd2Deg = miterEnd2,

@@ -21,12 +21,13 @@ public static class CutPlanPdfExportService
     settings ??= PdfExportSettingsStore.Load();
     PdfFontBootstrap.EnsureInitialized();
 
+    var title = BuildDocumentTitle(result, parts);
+
     using var document = new PdfDocument();
-    document.Info.Title = "Zuschnittplan Rohre";
+    document.Info.Title = title;
     document.Info.Author = "Rohre Zuschnitt Optimierung";
 
-    var page = document.AddPage();
-    page.Size = PdfSharp.PageSize.A4;
+    var page = AddLandscapePage(document);
     var gfx = XGraphics.FromPdfPage(page);
 
     var fontTitle = new XFont("Segoe UI", 18, XFontStyleEx.Bold);
@@ -38,7 +39,7 @@ public static class CutPlanPdfExportService
     var y = MarginPt;
     var contentWidth = page.Width - MarginPt * 2;
 
-    y = DrawLine(gfx, "Zuschnittplan Rohre", fontTitle, MarginPt, y, contentWidth);
+    y = DrawLine(gfx, title, fontTitle, MarginPt, y, contentWidth);
     y += 4;
 
     if (!string.IsNullOrWhiteSpace(orderReference))
@@ -122,9 +123,16 @@ public static class CutPlanPdfExportService
 
     foreach (var bar in result.Bars)
     {
+      var oriented = bar.OrientedPieces.Count > 0
+        ? bar.OrientedPieces
+        : MiterPairingService.OrientPiecesOnBar(bar.Pieces);
+      var steps = bar.StockCutSteps.Count > 0
+        ? bar.StockCutSteps
+        : MiterPairingService.BuildStockCutSteps(oriented);
+      var tableRows = BuildSawWorkRows(oriented, steps);
       var requiredHeight = 80
-                           + (settings.ShowBarDiagram ? 220 : 0)
-                           + (settings.ShowDetailedCutSequence ? bar.StockCutSteps.Count * (LineHeight + 2) + 40 : 0);
+                           + (settings.ShowBarDiagram ? 120 : 0)
+                           + 28 + tableRows.Count * (LineHeight + 1);
       y = EnsureSpace(document, ref page, ref gfx, ref y, requiredHeight, fontBody, fontHeading, fontSmall, fontTitle, fontBold, contentWidth);
       y = DrawLine(gfx, $"{bar.StockLabel} {bar.BarNumber} · {FormatMm(bar.StockLengthMm)}", fontHeading, MarginPt, y, contentWidth);
 
@@ -139,36 +147,22 @@ public static class CutPlanPdfExportService
           contentWidth);
       }
 
+      y = DrawLine(
+        gfx,
+        "Farbe = Gehrung. Rechteck = Rohr. Schräge Linie = ein Schnitt, kein Dreieck.",
+        fontBold,
+        MarginPt,
+        y,
+        contentWidth);
+
       y += 6;
 
       if (settings.ShowBarDiagram)
-        y = DrawBarDiagram(gfx, bar, bar.StockLengthMm, result.KerfMm, MarginPt, y, contentWidth, settings);
+        y = DrawBarDiagram(gfx, bar, bar.StockLengthMm, MarginPt, y, contentWidth);
       else
         y += 4;
 
-      if (settings.ShowDetailedCutSequence)
-      {
-        foreach (var step in bar.StockCutSteps)
-        {
-          y = EnsureSpace(document, ref page, ref gfx, ref y, LineHeight + 2, fontBody, fontHeading, fontSmall, fontTitle, fontBold, contentWidth);
-          y = DrawLine(
-            gfx,
-            $"  {step.StepNumber}. {step.SawAngleDeg:0}° – {step.Description}",
-            fontBody,
-            MarginPt,
-            y,
-            contentWidth);
-        }
-
-        if (!string.IsNullOrWhiteSpace(bar.SawPlanSummary))
-        {
-          foreach (var line in bar.SawPlanSummary.Split('\n').Where(l => !string.IsNullOrWhiteSpace(l)))
-          {
-            y = EnsureSpace(document, ref page, ref gfx, ref y, LineHeight + 2, fontBody, fontHeading, fontSmall, fontTitle, fontBold, contentWidth);
-            y = DrawLine(gfx, line.Trim(), fontSmall, MarginPt, y, contentWidth);
-          }
-        }
-      }
+      y = DrawSawWorkTable(document, ref page, ref gfx, ref y, tableRows, fontBody, fontHeading, fontSmall, fontTitle, fontBold, contentWidth);
 
       y += 14;
     }
@@ -181,166 +175,267 @@ public static class CutPlanPdfExportService
     XGraphics gfx,
     CutBarPlan bar,
     double stockLengthMm,
-    double kerfMm,
     double x,
     double y,
-    double width,
-    PdfExportSettings settings)
+    double width)
   {
-    const double diagramHeight = 52;
-
+    const double labelBand = 14;
+    const double barHeight = 44;
     var visibleLengthMm = stockLengthMm > 0 ? stockLengthMm : bar.StockLengthMm;
     var scale = width / visibleLengthMm;
-    var centerY = y + diagramHeight / 2;
-    var halfH = 14;
+    var barTop = y + labelBand;
+    var barBottom = barTop + barHeight;
 
-    var stockPen = new XPen(XColors.Gray, 1);
     var wasteBrush = new XSolidBrush(XColor.FromArgb(230, 230, 230));
-    var pieceBrush1 = new XSolidBrush(XColor.FromArgb(77, 163, 255));
-    var pieceBrush2 = new XSolidBrush(XColor.FromArgb(34, 197, 94));
-    var piecePen1 = new XPen(XColor.FromArgb(37, 99, 235), 1.2);
-    var piecePen2 = new XPen(XColor.FromArgb(22, 163, 74), 1.2);
-    var kerfBrush = new XSolidBrush(XColor.FromArgb(224, 82, 82));
-    var sharedPen = new XPen(XColor.FromArgb(245, 158, 11), 2.5);
     var textBrush = XBrushes.Black;
-    var fontLabel = new XFont("Segoe UI", 8, XFontStyleEx.Regular);
-    var fontSmall = new XFont("Segoe UI", 7, XFontStyleEx.Regular);
+    var fontLabel = new XFont("Segoe UI", 8, XFontStyleEx.Bold);
+    var fontSmall = new XFont("Segoe UI", 7, XFontStyleEx.Bold);
+    var cutPen = new XPen(XColors.Black, 2);
 
     var stockWidth = visibleLengthMm * scale;
-    gfx.DrawRectangle(stockPen, x, y, stockWidth, diagramHeight);
-
     var usedWidth = Math.Min(bar.UsedMm * scale, stockWidth);
     if (stockWidth - usedWidth > 1)
-      gfx.DrawRectangle(wasteBrush, x + usedWidth, y, stockWidth - usedWidth, diagramHeight);
+      gfx.DrawRectangle(wasteBrush, x + usedWidth, barTop, stockWidth - usedWidth, barHeight);
 
-    if (bar.WasteMm > 0 && stockWidth - usedWidth > 12)
+    if (bar.WasteMm > 0 && stockWidth - usedWidth > 28)
     {
       DrawCenteredMultilineText(
         gfx,
         ["Verschnitt", $"{bar.WasteMm:0} mm"],
         fontSmall,
         textBrush,
-        new XRect(x + usedWidth, y + diagramHeight - 18, stockWidth - usedWidth, 16));
+        new XRect(x + usedWidth, barBottom - 20, stockWidth - usedWidth, 18));
+    }
+
+    var oriented = bar.OrientedPieces.Count > 0
+      ? bar.OrientedPieces.ToList()
+      : MiterPairingService.OrientPiecesOnBar(bar.Pieces);
+    var cutAngles = MiterPairingService.BuildCutAnglesOnBar(oriented).ToList();
+    var gehrungIndex = MiterPairingService.GehrungColorIndex(oriented);
+
+    var lefts = new double[oriented.Count];
+    var rights = new double[oriented.Count];
+    var cursorX = x;
+    for (var i = 0; i < oriented.Count; i++)
+    {
+      var pieceWidth = Math.Max(oriented[i].LengthMm * scale, 1);
+      lefts[i] = cursorX;
+      rights[i] = cursorX + pieceWidth;
+      var (fill, _) = BrushForGehrung(MiterPairingService.PrimaryMiterDeg(oriented[i]), gehrungIndex);
+      gfx.DrawRectangle(fill, cursorX, barTop, pieceWidth, barHeight);
+
+      if (pieceWidth >= 32)
+      {
+        DrawCenteredMultilineText(
+          gfx,
+          [$"{i + 1}", $"{oriented[i].LengthMm:0} mm"],
+          fontLabel,
+          textBrush,
+          new XRect(cursorX, barTop + 8, pieceWidth, barHeight - 12));
+      }
+      else if (pieceWidth >= 14)
+      {
+        DrawCenteredMultilineText(
+          gfx,
+          [$"{i + 1}"],
+          fontSmall,
+          textBrush,
+          new XRect(cursorX, barTop + 14, pieceWidth, 16));
+      }
+
+      cursorX += pieceWidth;
+    }
+
+    if (oriented.Count > 0)
+    {
+      DrawSawCut(gfx, cutPen, lefts[0], barTop, barBottom, cutAngles[0]);
+      for (var i = 0; i < oriented.Count - 1; i++)
+        DrawSawCut(gfx, cutPen, rights[i], barTop, barBottom, cutAngles[i + 1]);
+      DrawSawCut(gfx, cutPen, rights[^1], barTop, barBottom, cutAngles[^1]);
+    }
+
+    foreach (var run in GehrungRuns(oriented, lefts, rights))
+    {
+      gfx.DrawString(
+        $"{run.Angle:0}°",
+        fontSmall,
+        textBrush,
+        new XRect(run.Left, y, run.Right - run.Left, labelBand),
+        XStringFormats.Center);
     }
 
     gfx.DrawString(
       "0 mm",
       fontSmall,
       textBrush,
-      new XRect(x, y + diagramHeight + 2, 40, 10),
+      new XRect(x, barBottom + 4, 40, 10),
       XStringFormats.TopLeft);
     gfx.DrawString(
       $"{visibleLengthMm:0} mm",
       fontSmall,
       textBrush,
-      new XRect(x + stockWidth - 48, y + diagramHeight + 2, 48, 10),
+      new XRect(x + stockWidth - 56, barBottom + 4, 56, 10),
       XStringFormats.TopRight);
 
-    var oriented = bar.OrientedPieces.Count > 0
-      ? bar.OrientedPieces.ToList()
-      : MiterPairingService.OrientPiecesOnBar(bar.Pieces);
-    var cutAngles = MiterPairingService.BuildCutAnglesOnBar(oriented).ToList();
-
-    var cursorX = x;
-    for (var i = 0; i < oriented.Count; i++)
+    if (gehrungIndex.Count > 0)
     {
-      var piece = oriented[i];
-      var pieceWidth = piece.LengthMm * scale;
-      var sharedLeft = i > 0 && MiterPairingService.IsSharedJunctionCut(oriented, cutAngles, i);
-      var sharedRight = i < oriented.Count - 1 && MiterPairingService.IsSharedJunctionCut(oriented, cutAngles, i + 1);
-
-      var fill = i % 2 == 0 ? pieceBrush1 : pieceBrush2;
-      var pen = i % 2 == 0 ? piecePen1 : piecePen2;
-      DrawTrapezoid(gfx, cursorX, cursorX + pieceWidth, centerY, halfH, piece.MiterLeftDeg, piece.MiterRightDeg, sharedLeft, fill, pen);
-
-      var nameLine = string.IsNullOrWhiteSpace(piece.DrawingName)
-        ? $"Rohr {i + 1}"
-        : $"Rohr {i + 1}";
-      var lengthLine = $"{piece.LengthMm:0} mm";
-
-      if (pieceWidth >= 28)
-      {
-        DrawCenteredMultilineText(
-          gfx,
-          [nameLine, lengthLine],
-          fontLabel,
-          textBrush,
-          new XRect(cursorX, y + 2, pieceWidth, diagramHeight - 4));
-      }
-      else
-      {
-        DrawCenteredMultilineText(
-          gfx,
-          [$"{i + 1}: {piece.LengthMm:0}"],
-          fontSmall,
-          textBrush,
-          new XRect(cursorX - 4, y + diagramHeight + 2, pieceWidth + 8, 10));
-      }
-
-      if (sharedRight)
-      {
-        var offset = halfH * Math.Tan(ToRadians(cutAngles[i + 1]));
-        gfx.DrawLine(sharedPen, cursorX + pieceWidth, centerY + halfH, cursorX + pieceWidth - offset, centerY - halfH);
-        DrawCenteredMultilineText(
-          gfx,
-          [$"{cutAngles[i + 1]:0}°", "gem."],
-          fontSmall,
-          new XSolidBrush(XColor.FromArgb(245, 158, 11)),
-          new XRect(cursorX + pieceWidth - offset - 22, centerY - 12, offset + 44, 24));
-      }
-
-      cursorX += pieceWidth;
-
-      if (i < oriented.Count - 1 && !MiterPairingService.IsSharedJunctionCut(oriented, cutAngles, i + 1) && kerfMm > 0)
-      {
-        var kerfWidth = Math.Max(kerfMm * scale, 2);
-        gfx.DrawRectangle(kerfBrush, cursorX, y, kerfWidth, diagramHeight);
-        cursorX += kerfWidth;
-      }
-    }
-
-    if (oriented.Count > 0 && settings.ShowDiagramCutSequenceLine)
-    {
-      var angles = cutAngles.Count > 0 ? string.Join(" · ", cutAngles.Select(a => $"{a:0}°")) : "90°";
+      var legend = "Farbe = Gehrung, nicht Länge: "
+                   + string.Join(" · ", gehrungIndex.OrderBy(e => e.Value).Select(e => $"{GehrungColorName(e.Value)} = {e.Key:0}°"));
       gfx.DrawString(
-        $"Schnittfolge: {angles}",
+        legend,
         fontSmall,
         textBrush,
-        new XRect(x, y + diagramHeight + 14, width, 12),
+        new XRect(x, barBottom + 16, width, 12),
         XStringFormats.TopLeft);
+      return y + labelBand + barHeight + 30;
     }
 
-    return y + diagramHeight + (settings.ShowDiagramCutSequenceLine ? 28 : 16);
+    return y + labelBand + barHeight + 16;
   }
 
-  private static void DrawTrapezoid(
-    XGraphics gfx,
-    double xStart,
-    double xEnd,
-    double centerY,
-    double halfH,
-    double leftDeg,
-    double rightDeg,
-    bool sharedLeft,
-    XBrush fill,
-    XPen pen)
+  private static (XSolidBrush Fill, XPen Pen) BrushForGehrung(
+    double miterDeg,
+    IReadOnlyDictionary<double, int> gehrungIndex)
   {
-    var yTop = centerY - halfH;
-    var yBottom = centerY + halfH;
-    var leftOffset = halfH * Math.Tan(ToRadians(leftDeg));
-    var rightOffset = halfH * Math.Tan(ToRadians(rightDeg));
-    var leftTopX = leftDeg > 0.1 && sharedLeft ? xStart - leftOffset : xStart + leftOffset;
+    if (miterDeg <= 0.1 || Math.Abs(miterDeg - 90) < 0.1)
+      return (new XSolidBrush(XColor.FromArgb(210, 210, 210)), new XPen(XColors.Gray, 1));
 
-    var points = new[]
+    var index = gehrungIndex.TryGetValue(miterDeg, out var mapped) ? mapped : 0;
+    var (fill, stroke) = index switch
     {
-      new XPoint(xStart, yBottom),
-      new XPoint(leftTopX, yTop),
-      new XPoint(xEnd - rightOffset, yTop),
-      new XPoint(xEnd, yBottom)
+      0 => (XColor.FromArgb(77, 163, 255), XColor.FromArgb(37, 99, 235)),
+      1 => (XColor.FromArgb(34, 197, 94), XColor.FromArgb(22, 163, 74)),
+      2 => (XColor.FromArgb(245, 158, 11), XColor.FromArgb(180, 100, 10)),
+      _ => (XColor.FromArgb(168, 85, 247), XColor.FromArgb(110, 50, 180))
     };
-
-    gfx.DrawPolygon(pen, fill, points, XFillMode.Alternate);
+    return (new XSolidBrush(fill), new XPen(stroke, 1.2));
   }
+
+  private static string GehrungColorName(int index) => index switch
+  {
+    0 => "Blau",
+    1 => "Grün",
+    2 => "Orange",
+    _ => "Violett"
+  };
+
+  private static bool IsMiterAngle(double deg) => deg > 0.5 && Math.Abs(deg - 90) > 0.5;
+
+  private static void DrawSawCut(XGraphics gfx, XPen pen, double x, double yTop, double yBottom, double angleDeg)
+  {
+    if (IsMiterAngle(angleDeg))
+    {
+      DrawMiterSlash(gfx, pen, x, yTop, yBottom, angleDeg);
+      return;
+    }
+
+    gfx.DrawLine(pen, x, yTop, x, yBottom);
+  }
+
+  private static void DrawMiterSlash(XGraphics gfx, XPen pen, double x, double yTop, double yBottom, double angleDeg)
+  {
+    var height = yBottom - yTop;
+    var offset = Math.Min(14, height * Math.Tan(Math.Min(angleDeg, 60) * Math.PI / 180d) / 2);
+    gfx.DrawLine(pen, x, yBottom, x - offset, yTop);
+  }
+
+  private readonly record struct GehrungRun(double Angle, double Left, double Right);
+
+  private static List<GehrungRun> GehrungRuns(
+    IReadOnlyList<OrientedCutPiece> pieces,
+    IReadOnlyList<double> lefts,
+    IReadOnlyList<double> rights)
+  {
+    var runs = new List<GehrungRun>();
+    if (pieces.Count == 0)
+      return runs;
+
+    var start = 0;
+    var angle = MiterPairingService.PrimaryMiterDeg(pieces[0]);
+    for (var i = 1; i <= pieces.Count; i++)
+    {
+      var next = i < pieces.Count ? MiterPairingService.PrimaryMiterDeg(pieces[i]) : double.NaN;
+      if (i < pieces.Count && Math.Abs(next - angle) < 0.1)
+        continue;
+
+      if (IsMiterAngle(angle) && rights[i - 1] - lefts[start] >= 28)
+        runs.Add(new GehrungRun(angle, lefts[start], rights[i - 1]));
+
+      if (i < pieces.Count)
+      {
+        start = i;
+        angle = next;
+      }
+    }
+
+    return runs;
+  }
+
+  private static double DrawSawWorkTable(
+    PdfDocument document,
+    ref PdfPage page,
+    ref XGraphics gfx,
+    ref double y,
+    IReadOnlyList<SawWorkRow> rows,
+    XFont fontBody,
+    XFont fontHeading,
+    XFont fontSmall,
+    XFont fontTitle,
+    XFont fontBold,
+    double contentWidth)
+  {
+    y = EnsureSpace(document, ref page, ref gfx, ref y, LineHeight * 3, fontBody, fontHeading, fontSmall, fontTitle, fontBold, contentWidth);
+    y = DrawLine(gfx, "Säge – ein Schnitt nach dem anderen", fontHeading, MarginPt, y, contentWidth);
+    y = DrawLine(
+      gfx,
+      "Nr.        Anschlag         Winkel      Hinweis",
+      fontBold,
+      MarginPt,
+      y,
+      contentWidth);
+
+    foreach (var row in rows)
+    {
+      y = EnsureSpace(document, ref page, ref gfx, ref y, LineHeight + 2, fontBody, fontHeading, fontSmall, fontTitle, fontBold, contentWidth);
+      var stop = row.StopMm <= 0.1 ? "—" : FormatMm(row.StopMm);
+      y = DrawLine(
+        gfx,
+        $"{row.Number,-6} {stop,-16} {row.AngleDeg:0}°         {row.Hint}",
+        fontBody,
+        MarginPt,
+        y,
+        contentWidth);
+    }
+
+    return y;
+  }
+
+  private static List<SawWorkRow> BuildSawWorkRows(
+    IReadOnlyList<OrientedCutPiece> pieces,
+    IReadOnlyList<StockCutStep> steps)
+  {
+    var rows = new List<SawWorkRow>();
+    if (steps.Count == 0)
+      return rows;
+
+    for (var i = 0; i < steps.Count; i++)
+    {
+      var stopMm = i == 0 ? 0 : pieces[Math.Min(i - 1, pieces.Count - 1)].LengthMm;
+      var hint = i == 0
+        ? "Stangenanfang"
+        : steps[i].IsSharedMiter
+          ? "Gemeinsam – nur einmal sägen"
+          : Math.Abs(steps[i].SawAngleDeg - 90) < 0.1
+            ? "Lotrecht trennen"
+            : steps[i].Description;
+
+      rows.Add(new SawWorkRow(steps[i].StepNumber, stopMm, steps[i].SawAngleDeg, hint));
+    }
+
+    return rows;
+  }
+
+  private readonly record struct SawWorkRow(int Number, double StopMm, double AngleDeg, string Hint);
 
   private static double EnsureSpace(
     PdfDocument document,
@@ -359,11 +454,45 @@ public static class CutPlanPdfExportService
       return y;
 
     gfx.Dispose();
-    page = document.AddPage();
-    page.Size = PdfSharp.PageSize.A4;
+    page = AddLandscapePage(document);
     gfx = XGraphics.FromPdfPage(page);
     y = MarginPt;
     return y;
+  }
+
+  private static PdfPage AddLandscapePage(PdfDocument document)
+  {
+    var page = document.AddPage();
+    page.Size = PdfSharp.PageSize.A4;
+    page.Orientation = PdfSharp.PageOrientation.Landscape;
+    return page;
+  }
+
+  private static string BuildDocumentTitle(CutOptimizationResult result, IReadOnlyList<CutPartEntry> parts)
+  {
+    var profile = ResolveProfile(result, parts);
+    if (profile is not null)
+      return $"Zuschnittplan {profile.CutPlanHeading}";
+
+    if (!string.IsNullOrWhiteSpace(result.ProfileLabel))
+      return $"Zuschnittplan {result.ProfileLabel}";
+
+    return "Zuschnittplan Rohre";
+  }
+
+  private static PipeProfileDefinition? ResolveProfile(
+    CutOptimizationResult result,
+    IReadOnlyList<CutPartEntry> parts)
+  {
+    if (!string.IsNullOrWhiteSpace(result.ProfileId))
+    {
+      var fromResult = PipeStockCatalog.TryGet(result.ProfileId);
+      if (fromResult is not null)
+        return fromResult;
+    }
+
+    var partId = parts.FirstOrDefault(part => !string.IsNullOrWhiteSpace(part.ProfileId))?.ProfileId;
+    return string.IsNullOrWhiteSpace(partId) ? null : PipeStockCatalog.TryGet(partId);
   }
 
   private static double DrawLine(
@@ -382,11 +511,6 @@ public static class CutPlanPdfExportService
     }
 
     return y;
-  }
-
-  private static void DrawCenteredText(XGraphics gfx, string text, XFont font, XBrush brush, XRect rect)
-  {
-    DrawCenteredMultilineText(gfx, [text], font, brush, rect);
   }
 
   private static void DrawCenteredMultilineText(
@@ -447,6 +571,4 @@ public static class CutPlanPdfExportService
 
   private static string FormatMm(double valueMm) =>
     Math.Abs(valueMm - Math.Round(valueMm)) < 0.01 ? $"{valueMm:0} mm" : $"{valueMm:0.##} mm";
-
-  private static double ToRadians(double degrees) => degrees * Math.PI / 180d;
 }

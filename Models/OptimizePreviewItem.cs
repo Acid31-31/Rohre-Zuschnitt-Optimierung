@@ -5,8 +5,10 @@ namespace RohreZuschnittOptimierung.Models;
 
 public sealed class OptimizePreviewItem
 {
-  public string DrawingName { get; init; } = "—";
+  public string DrawingName { get; init; } = "-";
+  public string ProfileLabel { get; init; } = "-";
   public string? PdfPath { get; init; }
+  public int PdfPageIndex { get; init; }
   public double LengthMm { get; init; }
   public int Quantity { get; init; }
   public string MiterText { get; init; } = string.Empty;
@@ -18,5 +20,5 @@ public sealed class OptimizePreviewItem
     : "OK";
   public string LengthText => LengthMm > 0
     ? LengthMm.ToString("0.###", CultureInfo.InvariantCulture) + " mm"
-    : "—";
+    : "-";
 }

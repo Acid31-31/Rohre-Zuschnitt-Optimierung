@@ -36,7 +36,7 @@ public partial class PipeWarehouseAddWizardWindow : Window
     {
       WarehouseWizardMode.AddNewMaterial => "Neumaterial anlegen",
       WarehouseWizardMode.AddRemnant => "Rohrest anlegen",
-      WarehouseWizardMode.SelectCutProfile => "Rohrprofil zum Schneiden",
+      WarehouseWizardMode.SelectCutProfile => "Profil zum Schneiden",
       _ => "Auswahl"
     };
     TitleTextBlock.Text = Title;
@@ -67,10 +67,14 @@ public partial class PipeWarehouseAddWizardWindow : Window
     switch (_step)
     {
       case WizardStep.ProfileKind:
-        StepTextBlock.Text = "Schritt 1: Rohrprofil wählen";
+        StepTextBlock.Text = "Schritt 1: Profil wählen";
         AddChoiceButton("Rundrohr", () => SelectProfileKind(PipeProfileKind.Round));
         AddChoiceButton("Vierkantrohr", () => SelectProfileKind(PipeProfileKind.Square));
         AddChoiceButton("Rechteckrohr", () => SelectProfileKind(PipeProfileKind.Rectangular));
+        AddChoiceButton("C-Profil", () => SelectProfileKind(PipeProfileKind.CProfile));
+        AddChoiceButton("U-Profil", () => SelectProfileKind(PipeProfileKind.UProfile));
+        AddChoiceButton("T-Profil", () => SelectProfileKind(PipeProfileKind.TProfile));
+        AddChoiceButton("Vollstange", () => SelectProfileKind(PipeProfileKind.RoundBar));
         break;
 
       case WizardStep.Material:
@@ -265,6 +269,10 @@ public partial class PipeWarehouseAddWizardWindow : Window
         PipeProfileKind.Round => "Rundrohr",
         PipeProfileKind.Square => "Vierkantrohr",
         PipeProfileKind.Rectangular => "Rechteckrohr",
+        PipeProfileKind.CProfile => "C-Profil",
+        PipeProfileKind.UProfile => "U-Profil",
+        PipeProfileKind.TProfile => "T-Profil",
+        PipeProfileKind.RoundBar => "Vollstange",
         _ => string.Empty
       });
     if (!string.IsNullOrWhiteSpace(_material))

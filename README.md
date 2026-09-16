@@ -30,21 +30,28 @@ Alle Entwicklung, USB-Builds und Releases erfolgen nur aus diesem Ordner.
 
 Erstellt `RohreZuschnittOptimierung-Release-Rxx.zip` und lädt es als GitHub-Release hoch. Bereits installierte ältere Versionen prüfen beim Start automatisch auf Updates.
 
-## USB-Version (wie bisher)
+Ab R23 enthält das Update-Paket **keine** Vision-KI mehr (`AI\` separat installieren). Optional mit KI: `.\publish-github-release.ps1 -IncludeAi`.
+
+## USB-Version
 
 ```powershell
 .\create-usb-version.ps1
 ```
 
-Erzeugt:
-- `USB-Version\Rohre-Zuschnitt-Rxx\` (portabel)
-- `USB-Version\Rohre-Zuschnitt-Rxx.zip` (für USB-Stick)
-- Kopie nach `Z:\Rohre-Zuschnitt-Rxx\` und `Z:\Rohre-Zuschnitt-Rxx.zip`
+Erzeugt diese feste Struktur:
 
-## Absicherung Quellcode auf Z:
+**Z:\Rohre-Zuschnitt\** (Hauptordner)
+- `Rohre-Zuschnitt-Rxx\` — lauffähiges Programm
+- `Rohre-Zuschnitt-Rxx.zip`
+
+**Projekt:** `USB-Version\Rohre-Zuschnitt-Rxx\` + ZIP (gleicher Inhalt, anderer Ordnername)
+
+**Absicherung:** `Z:\Programierung\Rohre-Zuschnitt-Absicherung\`
+
+## Absicherung (nur bei Bedarf erneut)
 
 ```powershell
-.\Sicherung-USB.ps1 -DestinationRoot "Z:\"
+.\Sicherung-USB.ps1
 ```
 
-Legt unter `Z:\Rohre-Zuschnitt-Optimierung\` das Programm und ein Quellcode-ZIP ab (zusätzlich zum GitHub-Stand).
+Aktualisiert `Z:\Programierung\Rohre-Zuschnitt-Absicherung\` (Programm + Quellcode-ZIP).

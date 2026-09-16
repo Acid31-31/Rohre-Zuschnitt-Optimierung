@@ -7,6 +7,24 @@ public partial class App : Application
 {
   protected override void OnStartup(StartupEventArgs e)
   {
+    ThemeService.Initialize(this);
+
+    DispatcherUnhandledException += (_, args) =>
+    {
+      try
+      {
+        MessageBox.Show(
+          "Unerwarteter Fehler:" + Environment.NewLine + args.Exception.Message,
+          AppInfo.ProductName,
+          MessageBoxButton.OK,
+          MessageBoxImage.Error);
+      }
+      catch
+      {
+      }
+      args.Handled = true;
+    };
+
     if (UpdateApplyRunner.TryParseApplyUpdateArgs(
           e.Args ?? [],
           out var stagedRoot,
@@ -19,10 +37,9 @@ public partial class App : Application
       return;
     }
 
-    AppSecurityService.Initialize();
     PortableDataMigrationService.TryMigrateLegacyUserData();
     PdfFontBootstrap.EnsureInitialized();
-    ThemeService.Initialize(this);
+    AppSecurityService.Initialize();
 
     if (UsbInstallService.IsUsbUninstallerLaunch(e.Args))
     {
@@ -64,8 +81,7 @@ public partial class App : Application
       TrialLicenseService.MarkWelcomeShown();
     }
 
-    PipeWarehouseStore.EnsureInitialized();
-    PipeWarehouseStore.ApplyRuntimeMode(AppSettingsStore.Load());
+    // Fenster zuerst zeigen – Lager/Netzwerk erst danach im Hintergrund.
     var mainWindow = new MainWindow(trialStatus);
     mainWindow.Show();
     base.OnStartup(e);

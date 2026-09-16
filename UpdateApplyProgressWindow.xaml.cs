@@ -13,6 +13,7 @@ public partial class UpdateApplyProgressWindow : Window
   public UpdateApplyProgressWindow(string stagedRoot, string targetRoot, int parentProcessId = 0)
   {
     InitializeComponent();
+    WindowChromeService.ApplyTheme(this, ThemeService.IsDarkMode);
     Loaded += UpdateApplyProgressWindow_Loaded;
 
     _stagedRoot = stagedRoot;
@@ -23,14 +24,15 @@ public partial class UpdateApplyProgressWindow : Window
   private async void UpdateApplyProgressWindow_Loaded(object sender, RoutedEventArgs e)
   {
     Loaded -= UpdateApplyProgressWindow_Loaded;
-    WindowChromeService.ApplyTheme(this, ThemeService.IsDarkMode);
 
-    var progress = new Progress<UpdateProgressInfo>(info =>
+    var presenter = new UpdateProgressPresenter((percent, message, remaining) =>
     {
-      InstallProgressBar.Value = info.Percent;
-      PercentTextBlock.Text = info.Percent + " %";
-      StatusTextBlock.Text = info.Message;
+      InstallProgressBar.Value = percent;
+      PercentTextBlock.Text = percent + " %";
+      StatusTextBlock.Text = message;
+      RemainingTimeTextBlock.Text = remaining;
     });
+    var progress = new Progress<UpdateProgressInfo>(presenter.Report);
 
     try
     {

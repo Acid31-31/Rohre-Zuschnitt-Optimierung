@@ -81,6 +81,26 @@ internal static class WarehouseHubClient
     return snapshot.Version;
   }
 
+  public static IReadOnlyList<WarehousePresenceDto> HeartbeatPresence(string baseUrl, WarehousePresenceDto self)
+  {
+    var url = NormalizeBaseUrl(baseUrl) + "/api/presence";
+    using var response = Http.PostAsJsonAsync(url, self, JsonOptions).GetAwaiter().GetResult();
+    response.EnsureSuccessStatusCode();
+    var snapshot = response.Content.ReadFromJsonAsync<WarehousePresenceSnapshotDto>(JsonOptions).GetAwaiter().GetResult()
+                   ?? new WarehousePresenceSnapshotDto();
+    return snapshot.Peers ?? [];
+  }
+
+  public static IReadOnlyList<WarehousePresenceDto> GetPresence(string baseUrl)
+  {
+    var url = NormalizeBaseUrl(baseUrl) + "/api/presence";
+    using var response = Http.GetAsync(url).GetAwaiter().GetResult();
+    response.EnsureSuccessStatusCode();
+    var snapshot = response.Content.ReadFromJsonAsync<WarehousePresenceSnapshotDto>(JsonOptions).GetAwaiter().GetResult()
+                   ?? new WarehousePresenceSnapshotDto();
+    return snapshot.Peers ?? [];
+  }
+
   private static WarehouseStockDto ToDto(PipeWarehouseStockItem item) =>
     new()
     {

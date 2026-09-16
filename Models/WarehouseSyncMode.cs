@@ -1,4 +1,4 @@
-namespace RohreZuschnittOptimierung.Models;
+﻿namespace RohreZuschnittOptimierung.Models;
 
 public enum WarehouseSyncMode
 {
@@ -9,5 +9,8 @@ public enum WarehouseSyncMode
   Host = 1,
 
   /// <summary>Verbindung zu einer Lager-Zentrale im Netzwerk.</summary>
-  Client = 2
+  Client = 2,
+
+  /// <summary>Gemeinsamer Lager-Ordner (UNC/Netzwerk) – jeder PC kann zugreifen.</summary>
+  SharedFolder = 3
 }

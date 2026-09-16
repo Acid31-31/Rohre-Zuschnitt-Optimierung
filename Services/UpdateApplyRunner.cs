@@ -186,33 +186,33 @@ internal static class UpdateApplyRunner
     CancellationToken cancellationToken)
   {
     Directory.CreateDirectory(targetRoot);
-    var files = Directory.GetFiles(sourceRoot, "*", SearchOption.AllDirectories)
-      .Where(file => IsApplicationFileExtension(Path.GetExtension(file)))
-      .ToArray();
+    Report(progress, 14, "Dateien werden installiert…");
 
-    var total = Math.Max(1, files.Length);
-    for (var index = 0; index < files.Length; index++)
+    var arguments =
+      $"\"{sourceRoot}\" \"{targetRoot}\" /MIR /R:2 /W:2 /NFL /NDL /NJH /NJS /NP /XF *.pdb /XD Daten AI";
+    var startInfo = new ProcessStartInfo
+    {
+      FileName = "robocopy",
+      Arguments = arguments,
+      CreateNoWindow = true,
+      UseShellExecute = false
+    };
+
+    using var process = Process.Start(startInfo)
+      ?? throw new InvalidOperationException("robocopy konnte nicht gestartet werden.");
+
+    while (!process.WaitForExit(500))
     {
       cancellationToken.ThrowIfCancellationRequested();
-      var file = files[index];
-      var relative = file.Substring(sourceRoot.Length).TrimStart(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-      var destination = Path.Combine(targetRoot, relative);
-      var destinationDir = Path.GetDirectoryName(destination);
-      if (!string.IsNullOrWhiteSpace(destinationDir))
-        Directory.CreateDirectory(destinationDir);
-
-      File.Copy(file, destination, true);
-      Report(progress, 12 + (int)((index + 1) * 84.0 / total), "Installiere: " + Path.GetFileName(file));
+      Report(progress, 50, "Dateien werden installiert…");
     }
+
+    if (process.ExitCode >= 8)
+      throw new InvalidOperationException("Dateien konnten nicht installiert werden (robocopy " + process.ExitCode + ").");
+
+    Report(progress, 90, "Installation fast abgeschlossen…");
   }
 
   private static void Report(IProgress<UpdateProgressInfo>? progress, int percent, string message) =>
     progress?.Report(new UpdateProgressInfo(percent, message));
-
-  private static bool IsApplicationFileExtension(string extension) =>
-    extension.Equals(".exe", StringComparison.OrdinalIgnoreCase)
-    || extension.Equals(".dll", StringComparison.OrdinalIgnoreCase)
-    || extension.Equals(".config", StringComparison.OrdinalIgnoreCase)
-    || extension.Equals(".cer", StringComparison.OrdinalIgnoreCase)
-    || extension.Equals(".ico", StringComparison.OrdinalIgnoreCase);
 }

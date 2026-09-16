@@ -36,7 +36,8 @@ public static class AppSettingsStore
         OllamaVisionModel = ReadString(root, nameof(AppSettings.OllamaVisionModel), BundledAiRuntime.DefaultModel),
         WarehouseSyncMode = ReadString(root, nameof(AppSettings.WarehouseSyncMode), nameof(WarehouseSyncMode.Local)),
         WarehouseHubPort = ReadInt(root, nameof(AppSettings.WarehouseHubPort), 5088),
-        WarehouseHubUrl = ReadString(root, nameof(AppSettings.WarehouseHubUrl), string.Empty)
+        WarehouseHubUrl = ReadString(root, nameof(AppSettings.WarehouseHubUrl), string.Empty),
+        SharedWarehouseDirectory = ReadString(root, nameof(AppSettings.SharedWarehouseDirectory), string.Empty)
       };
     }
     catch
@@ -72,7 +73,8 @@ public static class AppSettingsStore
       new XElement(nameof(AppSettings.OllamaVisionModel), settings.OllamaVisionModel),
       new XElement(nameof(AppSettings.WarehouseSyncMode), settings.WarehouseSyncMode),
       new XElement(nameof(AppSettings.WarehouseHubPort), settings.WarehouseHubPort.ToString(CultureInfo.InvariantCulture)),
-      new XElement(nameof(AppSettings.WarehouseHubUrl), settings.WarehouseHubUrl ?? string.Empty));
+      new XElement(nameof(AppSettings.WarehouseHubUrl), settings.WarehouseHubUrl ?? string.Empty),
+      new XElement(nameof(AppSettings.SharedWarehouseDirectory), settings.SharedWarehouseDirectory ?? string.Empty));
 
     root.Save(FilePath);
   }

@@ -39,6 +39,9 @@ public sealed class CutBarPlan
 
 public sealed class CutOptimizationResult
 {
+  public string? ProfileId { get; set; }
+  public string? ProfileLabel { get; set; }
+  public string? Material { get; set; }
   public IReadOnlyList<CutBarPlan> Bars { get; init; } = [];
   public int TotalBars { get; init; }
   public double TotalWasteMm { get; init; }

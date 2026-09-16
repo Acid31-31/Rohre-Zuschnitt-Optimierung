@@ -1,5 +1,6 @@
 param(
-    [string]$Configuration = "Release"
+    [string]$Configuration = "Release",
+    [switch]$IncludeAi
 )
 
 $ErrorActionPreference = "Stop"
@@ -16,21 +17,36 @@ $usbLauncherName = "Programm installieren.exe"
 $productFolder = $buildInfo.ProductFolder
 $projectFile = Join-Path $root "RohreZuschnittOptimierung.csproj"
 
-Write-Host "[1/5] Release-Build ($Configuration)..."
-dotnet build $projectFile -c $Configuration --no-incremental
+# Feste Struktur (USB = gleicher Inhalt, anderer Name im Projekt: USB-Version):
+# Z:\Rohre-Zuschnitt\
+#   Rohre-Zuschnitt-Rxx\
+#   Rohre-Zuschnitt-Rxx.zip
+#   AI\                 (optional, separat)
+$zParent = 'Z:\Rohre-Zuschnitt'
+$zRevFolder = Join-Path $zParent $productFolder
+$zRevZip = Join-Path $zParent $buildInfo.UsbZipName
+
+$projectUsbRoot = Join-Path $root 'USB-Version'
+$projectRevFolder = Join-Path $projectUsbRoot $productFolder
+$projectRevZip = Join-Path $projectUsbRoot $buildInfo.UsbZipName
+
+$backupRoot = 'Z:\Programierung\Rohre-Zuschnitt-Absicherung'
+$backupProgram = Join-Path $backupRoot 'Programm'
+
+Write-Host "[1/5] Self-contained Publish ($Configuration, win-x64)..."
+$publishDir = Join-Path $root "publish\win-x64-sc"
+if (Test-Path $publishDir) {
+    Remove-Item $publishDir -Recurse -Force -ErrorAction SilentlyContinue
+}
+dotnet publish $projectFile -c $Configuration -r win-x64 --self-contained true `
+  -p:PublishSingleFile=false `
+  -p:IncludeNativeLibrariesForSelfExtract=true `
+  -o $publishDir
 if ($LASTEXITCODE -ne 0) {
-    throw "Build fehlgeschlagen."
+    throw "Publish fehlgeschlagen."
 }
 
-$releaseDir = Get-ChildItem (Join-Path $root "bin\$Configuration") -Directory -ErrorAction SilentlyContinue |
-    Where-Object { $_.Name -like "net8.0-windows*" -and (Test-Path (Join-Path $_.FullName $exeName)) } |
-    Sort-Object LastWriteTime -Descending |
-    Select-Object -First 1 -ExpandProperty FullName
-if ([string]::IsNullOrWhiteSpace($releaseDir)) {
-    throw "Release-Ausgabeordner nicht gefunden unter bin\$Configuration\net8.0-windows*"
-}
-$releaseExe = Join-Path $releaseDir $exeName
-Write-Host "Release-Ordner: $releaseDir"
+$releaseExe = Join-Path $publishDir $exeName
 if (-not (Test-Path $releaseExe)) {
     throw "Release-EXE nicht gefunden: $releaseExe"
 }
@@ -39,7 +55,7 @@ $signScript = Join-Path $root "sign-app.ps1"
 . (Join-Path $root "Resolve-CodeSigningCert.ps1")
 $certInfo = Resolve-CodeSigningCert -Root $root
 if ((Test-Path $signScript) -and $certInfo.IsAvailable) {
-    Write-Host "[1b/5] Release-EXE signieren..."
+    Write-Host "Signiere Release-EXE..."
     & powershell -ExecutionPolicy Bypass -File $signScript -Configuration $Configuration
     if ($LASTEXITCODE -ne 0) {
         throw "Signieren fehlgeschlagen."
@@ -49,170 +65,196 @@ else {
     Write-Warning "Signieren uebersprungen (Zertifikat nicht gefunden)."
 }
 
-$usbRoot = Join-Path $root "USB-Version"
-$releaseRoot = Join-Path $root "Release-Version"
-$appFolder = Join-Path $usbRoot $productFolder
-$releaseFolder = Join-Path $releaseRoot $productFolder
+function Add-UsbLaunchFiles {
+    param([string]$TargetRoot)
 
-Write-Host "[2/5] USB- und Release-Ordner vorbereiten ($productFolder)..."
-if (-not (Test-Path $usbRoot)) {
-    New-Item -ItemType Directory -Path $usbRoot | Out-Null
-}
-if (-not (Test-Path $releaseRoot)) {
-    New-Item -ItemType Directory -Path $releaseRoot | Out-Null
-}
-
-# Nur den aktuellen Revisionsordner neu anlegen - aeltere USB-Ordner nicht loeschen,
-# sonst brechen bestehende Desktop-Verknuepfungen (Ziel fehlt).
-foreach ($target in @($appFolder, $releaseFolder)) {
-    if (Test-Path $target) {
-        try {
-            Remove-Item $target -Recurse -Force -ErrorAction Stop
-        }
-        catch {
-            Write-Warning "Ordner gesperrt (Explorer offen?): $target"
-        }
+    $licenseSource = Join-Path $root "LICENSE_DE.txt"
+    if (Test-Path $licenseSource) {
+        Copy-Item $licenseSource (Join-Path $TargetRoot "LICENSE_DE.txt") -Force
     }
-    New-Item -ItemType Directory -Path $target -Force | Out-Null
-}
 
-Write-Host "[3/5] Dateien kopieren..."
-Get-ChildItem $releaseDir -File | Where-Object {
-    $_.Extension -in @('.dll', '.config', '.json')
-} | ForEach-Object {
-    Copy-Item $_.FullName -Destination (Join-Path $appFolder $_.Name) -Force
-}
+    Copy-Item $releaseExe (Join-Path $TargetRoot $usbLauncherName) -Force
 
-Get-ChildItem $releaseDir -File | Where-Object {
-    $_.Extension -in @('.exe', '.dll', '.config', '.json')
-} | ForEach-Object {
-    Copy-Item $_.FullName -Destination (Join-Path $releaseFolder $_.Name) -Force
-}
-
-$licenseSource = Join-Path $root "LICENSE_DE.txt"
-if (Test-Path $licenseSource) {
-    Copy-Item $licenseSource (Join-Path $appFolder "LICENSE_DE.txt") -Force
-    Copy-Item $licenseSource (Join-Path $releaseFolder "LICENSE_DE.txt") -Force
-}
-
-Write-Host "[3b/5] Programmdateien fuer USB..."
-Copy-Item $releaseExe (Join-Path $appFolder $exeName) -Force
-Copy-Item $releaseExe (Join-Path $appFolder $usbLauncherName) -Force
-
-$vendorAi = Join-Path $root "vendor\AI"
-if (Test-Path (Join-Path $vendorAi "ollama\ollama.exe")) {
-    Write-Host "[3b2/5] Mitgelieferte Vision-KI kopieren (AI\)..."
-    $aiTargets = @(
-        (Join-Path $appFolder "AI"),
-        (Join-Path $releaseFolder "AI"),
-        (Join-Path $releaseDir "AI")
-    )
-    foreach ($aiTarget in $aiTargets) {
-        if (Test-Path $aiTarget) { Remove-Item $aiTarget -Recurse -Force -ErrorAction SilentlyContinue }
-        New-Item -ItemType Directory -Path $aiTarget -Force | Out-Null
-        # Copy-Item -Recurse hangs on ~1.8 GB model blobs; robocopy is reliable.
-        & robocopy $vendorAi $aiTarget /E /R:2 /W:2 /NFL /NDL /NJH /NJS /NP /MT:8 | Out-Null
-        if ($LASTEXITCODE -ge 8) {
-            throw "Vision-KI Kopie fehlgeschlagen: $aiTarget (robocopy exit $LASTEXITCODE)"
-        }
-        # CUDA-Laufzeiten weglassen (Paketgröße); CPU/Vulkan reicht für Vision
-        Get-ChildItem (Join-Path $aiTarget "ollama\lib\ollama") -Directory -ErrorAction SilentlyContinue |
-          Where-Object { $_.Name -like "cuda*" } |
-          ForEach-Object { Remove-Item $_.FullName -Recurse -Force -ErrorAction SilentlyContinue }
+    $deployCer = Join-Path $root "CodeSigning.cer"
+    if (Test-Path $deployCer) {
+        Copy-Item $deployCer (Join-Path $TargetRoot "CodeSigning.cer") -Force
     }
-}
-else {
-    Write-Warning "vendor\AI fehlt. Vor dem Release Prepare-BundledAi.ps1 ausfuehren (echte Vision-KI)."
-}
-
-$signPackageScript = Join-Path $root "sign-package-exes.ps1"
-if ((Test-Path $signPackageScript) -and $certInfo.IsAvailable) {
-    Write-Host "[3c/5] Signiere Paket-EXEs..."
-    & powershell -ExecutionPolicy Bypass -File $signPackageScript -PackageRoot $appFolder
-    if ($LASTEXITCODE -ne 0) {
-        throw "Paket-Signierung fehlgeschlagen (USB)."
+    elseif ($certInfo.PublicCerPath) {
+        Copy-Item $certInfo.PublicCerPath (Join-Path $TargetRoot "CodeSigning.cer") -Force
     }
-    & powershell -ExecutionPolicy Bypass -File $signPackageScript -PackageRoot $releaseFolder
-    if ($LASTEXITCODE -ne 0) {
-        throw "Paket-Signierung fehlgeschlagen (Release)."
-    }
-}
 
-$deployCer = Join-Path $root "CodeSigning.cer"
-if (Test-Path $deployCer) {
-    Copy-Item $deployCer (Join-Path $appFolder "CodeSigning.cer") -Force
-    Copy-Item $deployCer (Join-Path $releaseFolder "CodeSigning.cer") -Force
-}
-elseif ($certInfo.PublicCerPath) {
-    Copy-Item $certInfo.PublicCerPath (Join-Path $appFolder "CodeSigning.cer") -Force
-    Copy-Item $certInfo.PublicCerPath (Join-Path $releaseFolder "CodeSigning.cer") -Force
-}
-
-$startBat = @"
+    $startBat = @"
 @echo off
 cd /d "%~dp0"
 start "" "$exeName"
 "@
-Set-Content -Path (Join-Path $appFolder "STARTEN.bat") -Value $startBat -Encoding ASCII
+    Set-Content -Path (Join-Path $TargetRoot "STARTEN.bat") -Value $startBat -Encoding ASCII
 
-$uninstallBat = @"
+    $uninstallBat = @"
 @echo off
 cd /d "%~dp0"
 start "" "$usbLauncherName" --uninstall
 "@
-Set-Content -Path (Join-Path $appFolder "DEINSTALLIEREN.bat") -Value $uninstallBat -Encoding ASCII
+    Set-Content -Path (Join-Path $TargetRoot "DEINSTALLIEREN.bat") -Value $uninstallBat -Encoding ASCII
 
-$readme = @"
-Rohre Zuschnitt Optimierung $($buildInfo.RevisionLabel) - USB-Version (portabel)
+    $readme = @"
+Rohre Zuschnitt Optimierung $($buildInfo.RevisionLabel) - USB-Version (standalone)
 
-SOFORT NUTZEN (ohne C:\Program Files):
-1) Ordner "$productFolder" auf USB oder Desktop kopieren
-2) $exeName oder STARTEN.bat starten -> Programm laeuft direkt aus dem Ordner
-
-OPTIONAL EINRICHTEN (Assistent mit Lizenz + Desktop-Verknuepfung):
-- $usbLauncherName doppelklicken
-- Keine Administratorrechte noetig
-- Programm bleibt im Ordner (portabel)
-
-Arbeitsdaten: Ordner "Daten" neben der Programm-EXE (portabel, kein AppData)
-Updates: automatisch von GitHub
-
-Deinstallation:
-- DEINSTALLIEREN.bat (entfernt Verknuepfung/Einrichtung, Ordner bleibt)
+STARTEN: $exeName oder STARTEN.bat
+EINRICHTEN: $usbLauncherName
+DEINSTALLIEREN: DEINSTALLIEREN.bat
+Vision-KI: Ordner AI\ neben die EXE (nicht im Paket)
 "@
-Set-Content -Path (Join-Path $appFolder "README_USB.txt") -Value $readme -Encoding UTF8
+    Set-Content -Path (Join-Path $TargetRoot "README_USB.txt") -Value $readme -Encoding UTF8
 
-Write-Host "[4/5] ZIP-Archive erstellen..."
-$usbZipPath = Join-Path $usbRoot $buildInfo.UsbZipName
-$releaseZipPath = Join-Path $releaseRoot $buildInfo.ReleaseZipName
-foreach ($zip in @($usbZipPath, $releaseZipPath)) {
-    if (Test-Path $zip) { Remove-Item $zip -Force }
+    $diagnoseSource = Join-Path $root "Diagnose-Start.bat"
+    if (Test-Path $diagnoseSource) {
+        Copy-Item $diagnoseSource (Join-Path $TargetRoot "Diagnose-Start.bat") -Force
+    }
 }
-Compress-Archive -Path (Join-Path $appFolder "*") -DestinationPath $usbZipPath -Force
-Compress-Archive -Path (Join-Path $releaseFolder "*") -DestinationPath $releaseZipPath -Force
 
-Write-Host "[5/5] Kopie auf Z: ($productFolder)..."
-$zFolder = Join-Path 'Z:\' $productFolder
-$zZip = Join-Path 'Z:\' $buildInfo.UsbZipName
-if (Test-Path 'Z:\') {
-    New-Item -ItemType Directory -Path $zFolder -Force | Out-Null
-    & robocopy $appFolder $zFolder /E /R:2 /W:2 /NFL /NDL /NJH /NJS /NP /XD Daten | Out-Null
-    Copy-Item $usbZipPath $zZip -Force
-    Write-Host "Z-Ordner: $zFolder"
-    Write-Host "Z-ZIP:    $zZip"
+function Deploy-Package {
+    param([string]$TargetRoot)
+
+    if (Test-Path $TargetRoot) {
+        Remove-Item $TargetRoot -Recurse -Force -ErrorAction SilentlyContinue
+    }
+    New-Item -ItemType Directory -Path $TargetRoot -Force | Out-Null
+    & robocopy $publishDir $TargetRoot /E /R:2 /W:2 /NFL /NDL /NJH /NJS /NP /XF "*.pdb" /XD Daten | Out-Null
+    if ($LASTEXITCODE -ge 8) {
+        throw "Kopie nach $TargetRoot fehlgeschlagen (robocopy exit $LASTEXITCODE)"
+    }
+    Add-UsbLaunchFiles -TargetRoot $TargetRoot
 }
-else {
-    Write-Warning "Laufwerk Z: nicht gefunden - Kopie uebersprungen."
+
+function New-PackageZip {
+    param(
+        [string]$SourceFolder,
+        [string]$ZipPath
+    )
+
+    if (Test-Path $ZipPath) { Remove-Item $ZipPath -Force }
+    Compress-Archive -Path (Join-Path $SourceFolder '*') -DestinationPath $ZipPath -Force
+}
+
+if (-not (Test-Path 'Z:\')) {
+    throw "Laufwerk Z: nicht gefunden."
+}
+
+Write-Host "[2/5] Projekt USB-Version: $projectUsbRoot"
+New-Item -ItemType Directory -Path $projectUsbRoot -Force | Out-Null
+Deploy-Package -TargetRoot $projectRevFolder
+New-PackageZip -SourceFolder $projectRevFolder -ZipPath $projectRevZip
+
+Write-Host "[3/5] Z-Freigabe: $zParent"
+New-Item -ItemType Directory -Path $zParent -Force | Out-Null
+Deploy-Package -TargetRoot $zRevFolder
+New-PackageZip -SourceFolder $zRevFolder -ZipPath $zRevZip
+
+if ($IncludeAi) {
+    $vendorAi = Join-Path $root "vendor\AI"
+    $aiTarget = Join-Path $zParent 'AI'
+    if (Test-Path (Join-Path $vendorAi "ollama\ollama.exe")) {
+        Write-Host "Vision-KI nach $aiTarget kopieren..."
+        New-Item -ItemType Directory -Path $aiTarget -Force | Out-Null
+        & robocopy $vendorAi $aiTarget /E /R:2 /W:2 /NFL /NDL /NJH /NJS /NP /MT:8 | Out-Null
+        if ($LASTEXITCODE -ge 8) {
+            throw "Vision-KI Kopie fehlgeschlagen."
+        }
+    }
+    else {
+        Write-Warning "vendor\AI fehlt."
+    }
+}
+
+$signPackageScript = Join-Path $root "sign-package-exes.ps1"
+if ((Test-Path $signPackageScript) -and $certInfo.IsAvailable) {
+    foreach ($pkg in @($projectRevFolder, $zRevFolder)) {
+        & powershell -ExecutionPolicy Bypass -File $signPackageScript -PackageRoot $pkg
+        if ($LASTEXITCODE -ne 0) {
+            throw "Paket-Signierung fehlgeschlagen: $pkg"
+        }
+    }
+}
+
+Write-Host "[4/5] Absicherung: $backupRoot"
+New-Item -ItemType Directory -Path $backupProgram -Force | Out-Null
+& robocopy $zRevFolder $backupProgram /MIR /R:2 /W:2 /NFL /NDL /NJH /NJS /NP /XD Daten | Out-Null
+if ($LASTEXITCODE -ge 8) {
+    throw "Absicherung Programm fehlgeschlagen (robocopy exit $LASTEXITCODE)"
+}
+
+$sourceZipName = "Rohre-Zuschnitt-Quelle-$($buildInfo.RevisionLabel).zip"
+$sourceZipDest = Join-Path $backupRoot $sourceZipName
+$stage = Join-Path $env:TEMP "Rohre-Zuschnitt-Quelle-$($buildInfo.RevisionLabel)"
+if (Test-Path $stage) { Remove-Item $stage -Recurse -Force }
+New-Item -ItemType Directory -Path $stage | Out-Null
+
+$excludeDirNames = @(
+    ".git", ".vs", "bin", "obj", "USB-Version", "Release-Version",
+    "publish", "Test-Update", "vendor", "Logos"
+)
+Get-ChildItem $root -Force | Where-Object {
+    $_.Name -notin $excludeDirNames
+} | ForEach-Object {
+    Copy-Item $_.FullName -Destination (Join-Path $stage $_.Name) -Recurse -Force
+}
+
+$tempZip = Join-Path $env:TEMP $sourceZipName
+if (Test-Path $tempZip) { Remove-Item $tempZip -Force }
+Compress-Archive -Path (Join-Path $stage "*") -DestinationPath $tempZip -Force
+Copy-Item $tempZip $sourceZipDest -Force
+Remove-Item $stage -Recurse -Force
+Remove-Item $tempZip -Force
+
+Get-ChildItem $backupRoot -Filter "Rohre-Zuschnitt-Quelle-*.zip" |
+    Where-Object { $_.Name -ne $sourceZipName } |
+    ForEach-Object { Remove-Item $_.FullName -Force }
+
+$readmeLines = @(
+    "Rohre Zuschnitt Optimierung - Absicherung $($buildInfo.RevisionLabel)"
+    "Stand: $(Get-Date -Format 'dd.MM.yyyy HH:mm')"
+    ""
+    "PROGRAMM: Programm\STARTEN.bat"
+    "ORDNER: $zRevFolder"
+    "ZIP: $zRevZip"
+    "QUELLCODE: $sourceZipName"
+)
+Set-Content -Path (Join-Path $backupRoot "README_SICHERUNG.txt") -Value $readmeLines -Encoding UTF8
+
+Write-Host "[5/5] Alte Revisionen aufraeumen (nur aktuelle behalten)..."
+foreach ($cleanupRoot in @($projectUsbRoot, $zParent)) {
+    if (-not (Test-Path $cleanupRoot)) { continue }
+    Get-ChildItem $cleanupRoot -Force | Where-Object {
+        ($_.PSIsContainer -and $_.Name -like 'Rohre-Zuschnitt-R*' -and $_.Name -ne $productFolder) `
+        -or ($_.Name -like 'Rohre-Zuschnitt-R*.zip' -and $_.Name -ne $buildInfo.UsbZipName) `
+        -or ($_.Name -like 'Rohre-Zuschnitt_R*') `
+        -or ($_.Name -eq 'USB')
+    } | ForEach-Object {
+        Remove-Item $_.FullName -Recurse -Force -ErrorAction SilentlyContinue
+        Write-Host "  Entfernt: $($_.FullName)"
+    }
+}
+
+# Lose Dateien im Z-Hauptordner entfernen (alte flache Struktur), ZIP behalten
+Get-ChildItem $zParent -File -Force -ErrorAction SilentlyContinue | Where-Object {
+    $_.Name -ne $buildInfo.UsbZipName
+} | ForEach-Object {
+    Remove-Item $_.FullName -Force -ErrorAction SilentlyContinue
+    Write-Host "  Entfernt (lose Datei): $($_.FullName)"
+}
+
+if (Test-Path (Join-Path 'Z:\' $buildInfo.UsbZipName)) {
+    Remove-Item (Join-Path 'Z:\' $buildInfo.UsbZipName) -Force -ErrorAction SilentlyContinue
 }
 
 Write-Host ""
 Write-Host "Fertig - $($buildInfo.RevisionLabel)"
-Write-Host "USB-Ordner:     $appFolder"
-Write-Host "USB-ZIP:        $usbZipPath"
-Write-Host "Release-Ordner: $releaseFolder"
-Write-Host "Release-ZIP:    $releaseZipPath"
+Write-Host "Z-Hauptordner: $zParent"
+Write-Host "  $productFolder\"
+Write-Host "  $($buildInfo.UsbZipName)"
+Write-Host "Projekt:       $projectUsbRoot"
+Write-Host "Absicherung:   $backupRoot"
 Write-Host ""
 
-explorer.exe $appFolder
-explorer.exe $releaseFolder
-if (Test-Path $zFolder) { explorer.exe $zFolder }
+explorer.exe $zParent

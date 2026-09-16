@@ -209,7 +209,7 @@ internal static class GitHubUpdateService
 
   private static async Task<string> FetchLatestReleaseViaApiAsync(CancellationToken cancellationToken)
   {
-    using var client = CreateHttpClient();
+    using var client = CreateHttpClient(TimeSpan.FromSeconds(15));
     using var response = await client.GetAsync(AppInfo.GitHubLatestReleaseApiUrl, cancellationToken).ConfigureAwait(false);
     if (!response.IsSuccessStatusCode)
     {
@@ -251,7 +251,7 @@ internal static class GitHubUpdateService
 
   private static async Task<string?> ResolveLatestReleaseTagAsync(CancellationToken cancellationToken)
   {
-    using var client = CreateHttpClient();
+    using var client = CreateHttpClient(TimeSpan.FromSeconds(15));
     using var request = new HttpRequestMessage(
       HttpMethod.Get,
       $"https://github.com/{AppInfo.GitHubOwner}/{AppInfo.GitHubRepo}/releases/latest");
@@ -293,7 +293,7 @@ internal static class GitHubUpdateService
   {
     try
     {
-      using var client = CreateHttpClient();
+      using var client = CreateHttpClient(TimeSpan.FromSeconds(15));
       using var response = await client.GetAsync(
         $"https://github.com/{AppInfo.GitHubOwner}/{AppInfo.GitHubRepo}/releases.atom",
         cancellationToken).ConfigureAwait(false);
@@ -499,14 +499,14 @@ internal static class GitHubUpdateService
     }
   }
 
-  private static HttpClient CreateHttpClient()
+  private static HttpClient CreateHttpClient(TimeSpan? timeout = null)
   {
     var handler = new HttpClientHandler
     {
       AllowAutoRedirect = true,
       MaxAutomaticRedirections = 8
     };
-    var client = new HttpClient(handler) { Timeout = TimeSpan.FromMinutes(10) };
+    var client = new HttpClient(handler) { Timeout = timeout ?? TimeSpan.FromMinutes(10) };
     // GitHub verlangt einen gültigen User-Agent; Leerzeichen/Umlaute in ProductInfoHeaderValue vermeiden.
     client.DefaultRequestHeaders.UserAgent.ParseAdd(
       "RohreZuschnittOptimierung/" + AppInfo.ApplicationVersion.ToString(3));

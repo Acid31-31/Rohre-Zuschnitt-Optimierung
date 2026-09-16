@@ -16,8 +16,18 @@ internal static class WarehouseSqliteStore
   private const string DbFileName = "pipe-warehouse.db";
   private const string LegacyXmlFileName = "pipe-warehouse.xml";
 
-  public static string DatabasePath =>
-    Path.Combine(AppInfo.UserDataDirectory, DbFileName);
+  public static string DatabasePath
+  {
+    get
+    {
+      var preferredDir = AppInfo.UserDataDirectory;
+      var dir = IsUnreliableSqliteLocation(preferredDir)
+        ? AppInfo.LegacyUserDataDirectory
+        : preferredDir;
+      Directory.CreateDirectory(dir);
+      return Path.Combine(dir, DbFileName);
+    }
+  }
 
   public static void EnsureInitialized()
   {
@@ -49,6 +59,8 @@ internal static class WarehouseSqliteStore
 
       if (ScalarLong(connection, "SELECT COUNT(*) FROM stock;") == 0)
         SeedCatalog(connection);
+      else
+        SeedMissingCatalogProfiles(connection);
     }
   }
 
@@ -136,12 +148,62 @@ internal static class WarehouseSqliteStore
 
   private static SqliteConnection Open()
   {
-    var connection = new SqliteConnection($"Data Source={DatabasePath}");
+    EnsureHealthyDatabaseFile();
+    var connection = new SqliteConnection($"Data Source={DatabasePath};Mode=ReadWriteCreate;Cache=Shared");
     connection.Open();
     using var cmd = connection.CreateCommand();
-    cmd.CommandText = "PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000;";
+    cmd.CommandText = "PRAGMA journal_mode=DELETE; PRAGMA synchronous=FULL; PRAGMA busy_timeout=8000; PRAGMA temp_store=MEMORY;";
     cmd.ExecuteNonQuery();
     return connection;
+  }
+
+  private static void EnsureHealthyDatabaseFile()
+  {
+    var path = DatabasePath;
+    Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+    if (!File.Exists(path))
+      return;
+
+    var info = new FileInfo(path);
+    if (info.Length > 0)
+      return;
+
+    // 0-Byte-Datei auf Netzlaufwerk = kaputt → entfernen und neu anlegen
+    TryDeleteDatabaseFiles(path);
+  }
+
+  private static void TryDeleteDatabaseFiles(string dbPath)
+  {
+    foreach (var candidate in new[] { dbPath, dbPath + "-wal", dbPath + "-shm", dbPath + "-journal" })
+    {
+      try
+      {
+        if (File.Exists(candidate))
+          File.Delete(candidate);
+      }
+      catch
+      {
+      }
+    }
+  }
+
+  private static bool IsUnreliableSqliteLocation(string directory)
+  {
+    try
+    {
+      var root = Path.GetPathRoot(Path.GetFullPath(directory));
+      if (string.IsNullOrWhiteSpace(root))
+        return true;
+      if (root.StartsWith(@"\\", StringComparison.Ordinal))
+        return true;
+
+      var drive = new DriveInfo(root);
+      return drive.DriveType is DriveType.Network or DriveType.NoRootDirectory;
+    }
+    catch
+    {
+      return true;
+    }
   }
 
   private static List<PipeWarehouseStockItem> ReadItems(SqliteConnection connection)
@@ -171,9 +233,33 @@ internal static class WarehouseSqliteStore
 
   private static void SeedCatalog(SqliteConnection connection)
   {
+    InsertMissingCatalogProfiles(connection);
+    SetVersion(connection, Math.Max(1, GetVersion(connection) + 1));
+  }
+
+  private static void SeedMissingCatalogProfiles(SqliteConnection connection)
+  {
+    try
+    {
+      var before = ScalarLong(connection, "SELECT COUNT(*) FROM stock;");
+      InsertMissingCatalogProfiles(connection);
+      var after = ScalarLong(connection, "SELECT COUNT(*) FROM stock;");
+      if (after > before)
+        SetVersion(connection, Math.Max(1, GetVersion(connection) + 1));
+    }
+    catch (SqliteException)
+    {
+      // Katalog-Nachzug darf den Start nicht blockieren (Netzlaufwerk-I/O).
+    }
+  }
+
+  private static void InsertMissingCatalogProfiles(SqliteConnection connection)
+  {
+    using var tx = connection.BeginTransaction();
     foreach (var profile in PipeStockCatalog.All)
     {
       using var cmd = connection.CreateCommand();
+      cmd.Transaction = tx;
       cmd.CommandText = """
         INSERT OR IGNORE INTO stock (profile_id, material, length_mm, quantity, reserved_quantity)
         VALUES ($p, $m, $l, 0, 0);
@@ -183,14 +269,13 @@ internal static class WarehouseSqliteStore
       cmd.Parameters.AddWithValue("$l", CutOptimizationDefaults.StockLengthMm);
       cmd.ExecuteNonQuery();
     }
-
-    SetVersion(connection, Math.Max(1, GetVersion(connection) + 1));
+    tx.Commit();
   }
 
   private static void TryImportLegacyXml(SqliteConnection connection)
   {
-    var xmlPath = Path.Combine(AppInfo.UserDataDirectory, LegacyXmlFileName);
-    if (!File.Exists(xmlPath))
+    var xmlPath = ResolveLegacyXmlPath();
+    if (xmlPath is null)
       return;
 
     try
@@ -234,6 +319,21 @@ internal static class WarehouseSqliteStore
     {
       // Legacy-Import optional
     }
+  }
+
+private static string? ResolveLegacyXmlPath()
+  {
+    var candidates = new[]
+    {
+      Path.Combine(AppInfo.UserDataDirectory, LegacyXmlFileName),
+      Path.Combine(AppInfo.LegacyUserDataDirectory, LegacyXmlFileName)
+    };
+    foreach (var candidate in candidates)
+    {
+      if (File.Exists(candidate))
+        return candidate;
+    }
+    return null;
   }
 
   private static long GetVersion(SqliteConnection connection)

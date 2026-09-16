@@ -24,4 +24,5 @@ public sealed class StockCutStep
   public int StepNumber { get; init; }
   public double SawAngleDeg { get; init; }
   public string Description { get; init; } = string.Empty;
+  public bool IsSharedMiter { get; init; }
 }

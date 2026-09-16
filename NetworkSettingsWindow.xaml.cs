@@ -1,8 +1,10 @@
 using System.Globalization;
+using System.IO;
 using System.Net;
 using System.Net.Sockets;
 using System.Windows;
 using System.Windows.Controls;
+using Microsoft.Win32;
 using RohreZuschnittOptimierung.Models;
 using RohreZuschnittOptimierung.Services;
 
@@ -25,10 +27,12 @@ public partial class NetworkSettingsWindow : Window
     var appSettings = AppSettingsStore.Load();
     WarehouseSyncModeComboBox.SelectedIndex = appSettings.WarehouseSyncMode?.ToLowerInvariant() switch
     {
-      "host" => 1,
-      "client" => 2,
+      "sharedfolder" => 1,
+      "host" => 2,
+      "client" => 3,
       _ => 0
     };
+    SharedFolderTextBox.Text = appSettings.SharedWarehouseDirectory ?? string.Empty;
     WarehouseHubPortTextBox.Text = (appSettings.WarehouseHubPort > 0 ? appSettings.WarehouseHubPort : 5088)
       .ToString(CultureInfo.InvariantCulture);
     WarehouseHubUrlTextBox.Text = appSettings.WarehouseHubUrl ?? string.Empty;
@@ -46,26 +50,54 @@ public partial class NetworkSettingsWindow : Window
   {
     if (!IsLoaded)
       return;
-    if (WarehouseSyncModeComboBox.SelectedIndex == 1)
+    if (WarehouseSyncModeComboBox.SelectedIndex == 2)
       RefreshHostAddressDisplay();
   }
 
   private void UpdateWarehouseHubUi()
   {
     var mode = WarehouseSyncModeComboBox.SelectedIndex;
-    HostAddressPanel.Visibility = mode == 1 ? Visibility.Visible : Visibility.Collapsed;
-    ClientAddressLabel.Visibility = mode == 2 ? Visibility.Visible : Visibility.Collapsed;
-    ClientAddressPanel.Visibility = mode == 2 ? Visibility.Visible : Visibility.Collapsed;
+    SharedFolderPanel.Visibility = mode == 1 ? Visibility.Visible : Visibility.Collapsed;
+    HostPortPanel.Visibility = mode is 2 or 3 ? Visibility.Visible : Visibility.Collapsed;
+    HostAddressPanel.Visibility = mode == 2 ? Visibility.Visible : Visibility.Collapsed;
+    ClientAddressLabel.Visibility = mode == 3 ? Visibility.Visible : Visibility.Collapsed;
+    ClientAddressPanel.Visibility = mode == 3 ? Visibility.Visible : Visibility.Collapsed;
 
-    if (mode == 1)
+    if (mode == 2)
       RefreshHostAddressDisplay();
 
     WarehouseHubStatusTextBlock.Text = mode switch
     {
-      1 => BuildHostStatusText(),
-      2 => "Client: Lager liegt nur auf der Zentrale. Adresse oben eintragen und „Prüfen“.",
+      1 => BuildSharedStatusText(),
+      2 => BuildHostStatusText(),
+      3 => "Client: Lager liegt nur auf der Zentrale. Adresse oben eintragen und „Prüfen“.",
       _ => "Lokal: SQLite neben der EXE (Daten\\pipe-warehouse.db)"
     };
+  }
+
+  private string BuildSharedStatusText()
+  {
+    var path = SharedFolderTextBox.Text.Trim();
+    if (string.IsNullOrWhiteSpace(path))
+      return "Ordner wählen (z. B. \\\\Server\\Share\\RohreLager). Alle PCs denselben Pfad verwenden.";
+    return "Gemeinsames Lager in: " + path;
+  }
+
+  private void BrowseSharedFolder_Click(object sender, RoutedEventArgs e)
+  {
+    var dialog = new OpenFolderDialog
+    {
+      Title = "Gemeinsamen Lager-Ordner wählen"
+    };
+    var current = SharedFolderTextBox.Text.Trim();
+    if (!string.IsNullOrWhiteSpace(current) && Directory.Exists(current))
+      dialog.InitialDirectory = current;
+
+    if (dialog.ShowDialog(this) == true && !string.IsNullOrWhiteSpace(dialog.FolderName))
+    {
+      SharedFolderTextBox.Text = dialog.FolderName;
+      UpdateWarehouseHubUi();
+    }
   }
 
   private void RefreshHostAddressDisplay()
@@ -74,8 +106,8 @@ public partial class NetworkSettingsWindow : Window
     HostAddressTextBox.Text = urls.Count > 0 ? urls[0] : $"http://127.0.0.1:{GetSelectedPort()}";
     HostAddressHintTextBlock.Text = urls.Count > 1
       ? "Weitere Adressen dieses PCs: " + string.Join("  ·  ", urls.Skip(1))
-        + Environment.NewLine + "Adresse kopieren und auf den anderen PCs eintragen. Firewall: Port freigeben."
-      : "Adresse kopieren und auf den anderen PCs unter „Mit Lager-Zentrale verbinden“ eintragen. Firewall: Port freigeben.";
+        + Environment.NewLine + "Nur für den alten Zentrale-Modus."
+      : "Nur für den alten Zentrale-Modus.";
   }
 
   private string BuildHostStatusText()
@@ -164,14 +196,38 @@ public partial class NetworkSettingsWindow : Window
 
     var mode = WarehouseSyncModeComboBox.SelectedIndex switch
     {
-      1 => nameof(WarehouseSyncMode.Host),
-      2 => nameof(WarehouseSyncMode.Client),
+      1 => nameof(WarehouseSyncMode.SharedFolder),
+      2 => nameof(WarehouseSyncMode.Host),
+      3 => nameof(WarehouseSyncMode.Client),
       _ => nameof(WarehouseSyncMode.Local)
     };
 
+    var sharedDir = SharedFolderTextBox.Text.Trim();
     var hubUrl = WarehouseHubClient.NormalizeBaseUrl(WarehouseHubUrlTextBox.Text);
     if (mode == nameof(WarehouseSyncMode.Host))
       hubUrl = HostAddressTextBox.Text.Trim();
+
+    if (mode == nameof(WarehouseSyncMode.SharedFolder))
+    {
+      if (string.IsNullOrWhiteSpace(sharedDir))
+      {
+        MessageBox.Show(this, "Bitte den gemeinsamen Lager-Ordner eintragen oder wählen.", "Netzwerk",
+          MessageBoxButton.OK, MessageBoxImage.Warning);
+        SharedFolderTextBox.Focus();
+        return;
+      }
+
+      try
+      {
+        Directory.CreateDirectory(sharedDir);
+      }
+      catch (Exception ex)
+      {
+        MessageBox.Show(this, "Ordner nicht erreichbar/schreibbar:\n" + ex.Message, "Netzwerk",
+          MessageBoxButton.OK, MessageBoxImage.Warning);
+        return;
+      }
+    }
 
     if (mode == nameof(WarehouseSyncMode.Client) && string.IsNullOrWhiteSpace(hubUrl))
     {
@@ -185,10 +241,12 @@ public partial class NetworkSettingsWindow : Window
     existing.WarehouseSyncMode = mode;
     existing.WarehouseHubPort = hubPort;
     existing.WarehouseHubUrl = hubUrl;
+    existing.SharedWarehouseDirectory = sharedDir;
     AppSettingsStore.Save(existing);
 
     try
     {
+      PipeWarehouseStore.ResetRuntimeMode();
       PipeWarehouseStore.ApplyRuntimeMode(existing);
     }
     catch (Exception ex)

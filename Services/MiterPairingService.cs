@@ -102,6 +102,7 @@ public static class MiterPairingService
     for (var i = 0; i < angles.Count; i++)
     {
       var angle = angles[i];
+      var shared = IsSharedJunctionCut(pieces, angles, i);
       var description = i switch
       {
         0 => angle > 0.1 && Math.Abs(angle - 90) > 0.1
@@ -110,8 +111,8 @@ public static class MiterPairingService
         _ when i == angles.Count - 1 => angle > 0.1 && Math.Abs(angle - 90) > 0.1
           ? $"Schnitt vor Verschnitt / Stangenende ({angle:0}°)"
           : "Schnitt vor Verschnitt / Stangenende",
-        _ when IsSharedJunctionCut(pieces, angles, i) =>
-          $"Gemeinsamer {angle:0}°-Schnitt zwischen zwei Teilen (beide Enden in einem Schnitt)",
+        _ when shared =>
+          $"Ein {angle:0}°-Schnitt für beide Teilenden – nicht zweimal sägen",
         _ when i > 0 && i < pieces.Count =>
           BuildSeparateJunctionDescription(pieces[i - 1], pieces[i]),
         _ => $"Trennschnitt ({angle:0}°)"
@@ -121,11 +122,79 @@ public static class MiterPairingService
       {
         StepNumber = i + 1,
         SawAngleDeg = angle,
-        Description = description
+        Description = description,
+        IsSharedMiter = shared
       });
     }
 
     return steps;
+  }
+
+  public static string FormatGroupedCutSequence(IReadOnlyList<StockCutStep> steps)
+  {
+    if (steps.Count == 0)
+      return "90°";
+
+    var parts = new List<string>();
+    var index = 0;
+    while (index < steps.Count)
+    {
+      var end = index;
+      while (end + 1 < steps.Count
+             && Math.Abs(steps[end + 1].SawAngleDeg - steps[index].SawAngleDeg) < 0.1)
+        end++;
+
+      var angle = $"{steps[index].SawAngleDeg:0}°";
+      var shared = steps.Skip(index).Take(end - index + 1).Any(step => step.IsSharedMiter)
+        ? " (ein Schnitt je Stoß)"
+        : string.Empty;
+      parts.Add(
+        end > index
+          ? $"Schnitt {steps[index].StepNumber}–{steps[end].StepNumber}: {angle}{shared}"
+          : $"Schnitt {steps[index].StepNumber}: {angle}{shared}");
+      index = end + 1;
+    }
+
+    return string.Join(" · ", parts);
+  }
+
+  public static double PrimaryMiterDeg(OrientedCutPiece piece)
+  {
+    var source = Math.Max(piece.Source.MiterEnd1Deg, piece.Source.MiterEnd2Deg);
+    if (source > 0.1)
+      return Math.Round(source);
+
+    var oriented = Math.Max(piece.MiterLeftDeg, piece.MiterRightDeg);
+    return oriented > 0.1 ? Math.Round(oriented) : 90;
+  }
+
+  public static Dictionary<double, int> GehrungColorIndex(IReadOnlyList<OrientedCutPiece> pieces)
+  {
+    var map = new Dictionary<double, int>();
+    foreach (var piece in pieces)
+    {
+      var key = PrimaryMiterDeg(piece);
+      if (Math.Abs(key - 90) < 0.1)
+        continue;
+      if (!map.ContainsKey(key))
+        map[key] = map.Count;
+    }
+
+    return map;
+  }
+
+  /// <summary>
+  /// Horizontalversatz der Gehrungskante. 90° bleibt lotrecht, damit kurze Teile
+  /// nicht in die Nachbarstücke kippen.
+  /// </summary>
+  public static double DiagramMiterOffset(double miterDeg, double halfHeight, double pieceWidth)
+  {
+    if (miterDeg <= 0.5 || miterDeg >= 89.5)
+      return 0;
+
+    var raw = halfHeight * Math.Tan(miterDeg * Math.PI / 180d);
+    var maxOffset = Math.Max(pieceWidth * 0.85, 2);
+    return Math.Min(raw, maxOffset);
   }
 
   public static int CountSawAdjustmentsOnBar(IReadOnlyList<double> cutAngles)

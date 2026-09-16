@@ -80,6 +80,12 @@
                    VerticalAlignment="Center"
                    Text="0 %"/>
       </Grid>
+      <TextBlock x:Name="RemainingTimeTextBlock"
+                 Margin="0,6,0,0"
+                 FontSize="12"
+                 FontWeight="SemiBold"
+                 Foreground="{DynamicResource AccentBrush}"
+                 Text="Restlaufzeit wird berechnet…"/>
     </StackPanel>
 
     <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right">

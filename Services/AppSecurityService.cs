@@ -113,10 +113,44 @@ internal static class AppSecurityService
       return false;
     }
 
+    if (!IsSelfContainedPackage(packageRoot, out var runtimeMessage))
+    {
+      message = runtimeMessage;
+      return false;
+    }
+
     if (!AppInfo.RequireCodeSignature)
       return true;
 
     return TryVerifyFileSignature(mainExe, out message, trustCerDirectory);
+  }
+
+  public static bool IsSelfContainedPackage(string packageRoot, out string message)
+  {
+    message = string.Empty;
+    var hostFx = Path.Combine(packageRoot, "hostfxr.dll");
+    var coreClr = Path.Combine(packageRoot, "coreclr.dll");
+    if (!File.Exists(hostFx) || !File.Exists(coreClr))
+    {
+      message = "Update-Paket ist nicht standalone (fehlende .NET-Laufzeit).";
+      return false;
+    }
+
+    var runtimeConfigPath = Path.Combine(packageRoot, "RohreZuschnittOptimierung.runtimeconfig.json");
+    if (!File.Exists(runtimeConfigPath))
+    {
+      message = "runtimeconfig.json fehlt im Update-Paket.";
+      return false;
+    }
+
+    var runtimeConfig = File.ReadAllText(runtimeConfigPath);
+    if (!runtimeConfig.Contains("includedFrameworks", StringComparison.OrdinalIgnoreCase))
+    {
+      message = "Update-Paket benötigt .NET-Installation und ist nicht standalone.";
+      return false;
+    }
+
+    return true;
   }
 
   public static bool TryVerifyFileSignature(string filePath, out string message, string? trustCerDirectory = null)
@@ -269,7 +303,10 @@ internal static class AppSecurityService
   private static bool IsApplicationFileExtension(string extension) =>
     extension.Equals(".exe", StringComparison.OrdinalIgnoreCase)
     || extension.Equals(".dll", StringComparison.OrdinalIgnoreCase)
+    || extension.Equals(".json", StringComparison.OrdinalIgnoreCase)
     || extension.Equals(".config", StringComparison.OrdinalIgnoreCase)
     || extension.Equals(".cer", StringComparison.OrdinalIgnoreCase)
-    || extension.Equals(".ico", StringComparison.OrdinalIgnoreCase);
+    || extension.Equals(".ico", StringComparison.OrdinalIgnoreCase)
+    || extension.Equals(".bat", StringComparison.OrdinalIgnoreCase)
+    || extension.Equals(".txt", StringComparison.OrdinalIgnoreCase);
 }

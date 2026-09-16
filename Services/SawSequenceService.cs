@@ -46,6 +46,7 @@ public static class SawSequenceService
     if (bar.StockCutSteps.Count > 0)
     {
       sb.AppendLine($"Schnittfolge an der Stange ({bar.StockCutSteps.Count} Schnitte, Säge {bar.SawAdjustments}× verstellen):");
+      sb.AppendLine("  Gleiche Gehrung am Stoß = ein Schnitt, nicht zweimal sägen.");
       foreach (var step in bar.StockCutSteps)
         sb.AppendLine($"  {step.StepNumber}. {step.SawAngleDeg:0}° – {step.Description}");
     }

@@ -1,5 +1,5 @@
 param(
-    [string]$DestinationRoot = 'Z:\'
+    [string]$DestinationRoot = ''
 )
 
 $ErrorActionPreference = "Stop"
@@ -10,70 +10,41 @@ Set-Location $root
 . (Join-Path $root "Get-RohreBuildRevision.ps1")
 $buildInfo = Get-RohreRevisionFromProject -Root $root
 
-function Get-UsbBackupDrive {
-    param([string]$PreferredRoot)
+$zParent = 'Z:\Rohre-Zuschnitt'
+$revFolder = Join-Path $zParent $buildInfo.ProductFolder
 
-    if (-not [string]::IsNullOrWhiteSpace($PreferredRoot)) {
-        if (-not (Test-Path $PreferredRoot)) {
-            throw "Zielpfad nicht gefunden: $PreferredRoot"
-        }
-        return (Get-Item $PreferredRoot).FullName
-    }
-
-    $removable = Get-Volume | Where-Object {
-        $_.DriveLetter -and $_.DriveType -eq "Removable"
-    } | Sort-Object SizeRemaining -Descending
-
-    if (-not $removable) {
-        throw "Kein USB-Stick gefunden. Stick einstecken und erneut ausfuehren."
-    }
-
-    $drive = $removable | Select-Object -First 1
-    $letter = $drive.DriveLetter
-    $freeGb = [math]::Round($drive.SizeRemaining / 1GB, 2)
-    Write-Host "USB-Stick: ${letter}:  (frei ${freeGb} GB)"
-    return "${letter}:\"
+$programSource = $revFolder
+if (-not (Test-Path (Join-Path $programSource "RohreZuschnittOptimierung.exe"))) {
+    $programSource = Join-Path $root ("USB-Version\" + $buildInfo.ProductFolder)
+}
+if (-not (Test-Path (Join-Path $programSource "RohreZuschnittOptimierung.exe"))) {
+    throw "USB-Programm fehlt. Zuerst create-usb-version.ps1 ausfuehren."
 }
 
-$usbDrive = Get-UsbBackupDrive -PreferredRoot $DestinationRoot
-$backupRoot = Join-Path $usbDrive "Rohre-Zuschnitt-Optimierung"
-$programDest = Join-Path $backupRoot "Programm"
+$backupRoot = if ([string]::IsNullOrWhiteSpace($DestinationRoot)) {
+    'Z:\Programierung\Rohre-Zuschnitt-Absicherung'
+} else {
+    Join-Path $DestinationRoot 'Rohre-Zuschnitt-Absicherung'
+}
+
+$backupProgram = Join-Path $backupRoot 'Programm'
+Write-Host "Absicherung nach: $backupRoot"
+New-Item -ItemType Directory -Path $backupProgram -Force | Out-Null
+
+& robocopy $programSource $backupProgram /MIR /R:2 /W:2 /NFL /NDL /NJH /NJS /NP /XD AI Daten | Out-Null
+if ($LASTEXITCODE -ge 8) {
+    throw "Kopieren fehlgeschlagen (robocopy $LASTEXITCODE)."
+}
+
 $sourceZipName = "Rohre-Zuschnitt-Quelle-$($buildInfo.RevisionLabel).zip"
 $sourceZipDest = Join-Path $backupRoot $sourceZipName
-
-$usbSource = Join-Path $root ("USB-Version\" + $buildInfo.ProductFolder)
-$zSource = Join-Path 'Z:\' $buildInfo.ProductFolder
-if (-not (Test-Path (Join-Path $usbSource "RohreZuschnittOptimierung.exe"))) {
-    if (Test-Path (Join-Path $zSource "RohreZuschnittOptimierung.exe")) {
-        $usbSource = $zSource
-        Write-Host "USB-Version im Projekt fehlt - nutze $usbSource"
-    }
-    else {
-        throw "USB-Programm fehlt: $usbSource. Zuerst create-usb-version.ps1 ausfuehren."
-    }
-}
-
-Write-Host "[1/3] Sicherungsordner anlegen: $backupRoot"
-New-Item -ItemType Directory -Path $backupRoot -Force | Out-Null
-
-Write-Host "[2/3] Programm kopieren ($($buildInfo.RevisionLabel))..."
-if (Test-Path $programDest) {
-    cmd /c "rmdir /s /q `"$programDest`"" | Out-Null
-}
-New-Item -ItemType Directory -Path $programDest -Force | Out-Null
-& robocopy $usbSource $programDest /E /R:2 /W:2 /NFL /NDL /NJH /NJS /NP /XD Daten | Out-Null
-if ($LASTEXITCODE -ge 8) {
-    throw "Kopieren des Programms fehlgeschlagen (robocopy $LASTEXITCODE)."
-}
-
-Write-Host "[3/3] Quellcode-ZIP erstellen..."
 $stage = Join-Path $env:TEMP "Rohre-Zuschnitt-Quelle-$($buildInfo.RevisionLabel)"
 if (Test-Path $stage) { Remove-Item $stage -Recurse -Force }
 New-Item -ItemType Directory -Path $stage | Out-Null
 
 $excludeDirNames = @(
     ".git", ".vs", "bin", "obj", "USB-Version", "Release-Version",
-    "Test-Update", "vendor", "Logos"
+    "publish", "Test-Update", "vendor", "Logos"
 )
 Get-ChildItem $root -Force | Where-Object {
     $_.Name -notin $excludeDirNames
@@ -88,32 +59,19 @@ Copy-Item $tempZip $sourceZipDest -Force
 Remove-Item $stage -Recurse -Force
 Remove-Item $tempZip -Force
 
-$zAppLine = 'Z:\' + $buildInfo.ProductFolder + '\'
-$zZipLine = 'Z:\' + $buildInfo.UsbZipName
+Get-ChildItem $backupRoot -Filter "Rohre-Zuschnitt-Quelle-*.zip" |
+    Where-Object { $_.Name -ne $sourceZipName } |
+    ForEach-Object { Remove-Item $_.FullName -Force }
+
 $readmeLines = @(
     "Rohre Zuschnitt Optimierung - Absicherung $($buildInfo.RevisionLabel)"
     "Stand: $(Get-Date -Format 'dd.MM.yyyy HH:mm')"
     ""
-    "PROGRAMM (sofort nutzbar):"
-    "  Ordner Programm auf den PC kopieren oder direkt vom Stick starten:"
-    "  Programm\STARTEN.bat"
-    "  oder Programm\RohreZuschnittOptimierung.exe"
-    ""
-    "QUELLCODE (Wiederherstellung):"
-    ("  " + $sourceZipName + " - Projekt ohne Build-Ordner und ohne KI-Paket")
-    ""
-    "GITHUB:"
-    "  https://github.com/Acid31-31/Rohre-Zuschnitt-Optimierung"
-    ""
-    ("Lauffaehige Kopie: " + $zAppLine)
-    ("ZIP:               " + $zZipLine)
-    ""
-    "Diese Sicherung nicht mit den Ordnern DOK-V01 Soft oder Privat vermischen."
+    "PROGRAMM: Programm\STARTEN.bat"
+    "QUELLCODE: $sourceZipName"
+    "ORDNER: $revFolder"
 )
 Set-Content -Path (Join-Path $backupRoot "README_SICHERUNG.txt") -Value $readmeLines -Encoding UTF8
 
-Write-Host ""
-Write-Host "Absicherung fertig: $backupRoot"
-Write-Host "Programm:  $programDest"
-Write-Host "Quelle:    $sourceZipDest"
+Write-Host "Fertig: $backupRoot"
 explorer.exe $backupRoot
