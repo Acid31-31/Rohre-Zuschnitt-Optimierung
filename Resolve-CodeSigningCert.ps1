@@ -41,15 +41,25 @@ function Get-SignToolPath {
         return $signtool
     }
 
-    $signtool = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin\*\x64\signtool.exe" -ErrorAction SilentlyContinue |
-        Sort-Object FullName -Descending |
-        Select-Object -First 1 -ExpandProperty FullName
+    $searchRoots = @(
+        "${env:ProgramFiles(x86)}\Windows Kits\10\bin",
+        "${env:ProgramFiles}\Windows Kits\10\bin"
+    )
+    foreach ($kitRoot in $searchRoots) {
+        if (-not (Test-Path $kitRoot)) {
+            continue
+        }
 
-    if ([string]::IsNullOrWhiteSpace($signtool)) {
-        throw "signtool.exe nicht gefunden. Windows SDK / Visual Studio Build Tools installieren."
+        $found = Get-ChildItem $kitRoot -Filter signtool.exe -Recurse -ErrorAction SilentlyContinue |
+            Where-Object { $_.Directory.Name -eq "x64" } |
+            Sort-Object FullName -Descending |
+            Select-Object -First 1 -ExpandProperty FullName
+        if (-not [string]::IsNullOrWhiteSpace($found)) {
+            return $found
+        }
     }
 
-    return $signtool
+    throw "signtool.exe nicht gefunden. Windows SDK / Visual Studio Build Tools installieren."
 }
 
 function Get-CodeSigningPassword {
