@@ -3,6 +3,11 @@
 Jede Revision listet die sichtbaren Änderungen für Nutzer.
 Beim Release liest `publish-github-release.ps1` den Abschnitt zur aktuellen Revision.
 
+## R38
+
+- Update-Anzeige zeigt die Paketgröße in MB (wie DOK-V01)
+- Beim Download: Fortschritt als „X von Y MB“
+
 ## R37
 
 - Zuschnittplan: Rohre als Rechtecke, Farbe folgt der Gehrung (nicht der Länge)

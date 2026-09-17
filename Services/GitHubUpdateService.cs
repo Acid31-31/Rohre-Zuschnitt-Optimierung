@@ -59,6 +59,7 @@ internal static class GitHubUpdateService
       result.DownloadUrl = asset.DownloadUrl;
       result.AssetId = asset.AssetId;
       result.AssetName = asset.Name ?? AppInfo.UpdateAssetFileName;
+      result.AssetSizeBytes = asset.SizeBytes;
     }
     catch (Exception ex)
     {
@@ -87,12 +88,12 @@ internal static class GitHubUpdateService
     var errors = new List<string>();
 
     if (!string.IsNullOrWhiteSpace(update.DownloadUrl)
-        && await TryDownloadBrowserAssetAsync(update.DownloadUrl, packagePath, errors, progress, cancellationToken).ConfigureAwait(false))
+        && await TryDownloadBrowserAssetAsync(update.DownloadUrl, packagePath, errors, progress, update.AssetSizeBytes, cancellationToken).ConfigureAwait(false))
     {
       // downloaded
     }
     else if (update.AssetId > 0
-             && await TryDownloadReleaseAssetAsync(update.AssetId, packagePath, errors, progress, cancellationToken).ConfigureAwait(false))
+             && await TryDownloadReleaseAssetAsync(update.AssetId, packagePath, errors, progress, update.AssetSizeBytes, cancellationToken).ConfigureAwait(false))
     {
       // downloaded
     }
@@ -235,6 +236,7 @@ internal static class GitHubUpdateService
     var assetName = BuildReleaseAssetFileName(tag);
     var downloadUrl =
       $"https://github.com/{AppInfo.GitHubOwner}/{AppInfo.GitHubRepo}/releases/download/{tag}/{assetName}";
+    var sizeBytes = await TryGetAssetSizeBytesAsync(downloadUrl, cancellationToken).ConfigureAwait(false);
 
     // Minimales JSON im API-Format, damit die bestehende Auswertung weiterläuft.
     return
@@ -244,9 +246,35 @@ internal static class GitHubUpdateService
       + "\"assets\":[{"
       + "\"id\":1,"
       + "\"name\":\"" + EscapeJson(assetName) + "\","
+      + "\"size\":" + sizeBytes.ToString(System.Globalization.CultureInfo.InvariantCulture) + ","
       + "\"browser_download_url\":\"" + EscapeJson(downloadUrl) + "\""
       + "}]"
       + "}";
+  }
+
+  private static async Task<long> TryGetAssetSizeBytesAsync(string downloadUrl, CancellationToken cancellationToken)
+  {
+    if (!Uri.TryCreate(downloadUrl, UriKind.Absolute, out var uri)
+        || !AppSecurityService.IsTrustedDownloadUrl(uri))
+      return 0;
+
+    try
+    {
+      using var client = CreateHttpClient(TimeSpan.FromSeconds(15));
+      using var head = new HttpRequestMessage(HttpMethod.Head, uri);
+      using var headResponse = await client.SendAsync(
+        head,
+        HttpCompletionOption.ResponseHeadersRead,
+        cancellationToken).ConfigureAwait(false);
+      if (headResponse.Content.Headers.ContentLength is > 0)
+        return headResponse.Content.Headers.ContentLength.Value;
+
+      return 0;
+    }
+    catch
+    {
+      return 0;
+    }
   }
 
   private static async Task<string?> ResolveLatestReleaseTagAsync(CancellationToken cancellationToken)
@@ -427,6 +455,7 @@ internal static class GitHubUpdateService
     string packagePath,
     ICollection<string> errors,
     IProgress<UpdateProgressInfo>? progress,
+    long expectedSizeBytes,
     CancellationToken cancellationToken)
   {
     if (!Uri.TryCreate(downloadUrl, UriKind.Absolute, out var uri)
@@ -448,7 +477,14 @@ internal static class GitHubUpdateService
 
       await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
       await using var file = File.Create(packagePath);
-      await CopyStreamWithProgressAsync(stream, file, response.Content.Headers.ContentLength, 5, 75, progress, cancellationToken).ConfigureAwait(false);
+      await CopyStreamWithProgressAsync(
+        stream,
+        file,
+        response.Content.Headers.ContentLength ?? (expectedSizeBytes > 0 ? expectedSizeBytes : null),
+        5,
+        75,
+        progress,
+        cancellationToken).ConfigureAwait(false);
       return true;
     }
     catch (Exception ex)
@@ -463,6 +499,7 @@ internal static class GitHubUpdateService
     string packagePath,
     ICollection<string> errors,
     IProgress<UpdateProgressInfo>? progress,
+    long expectedSizeBytes,
     CancellationToken cancellationToken)
   {
     var apiUrl = $"https://api.github.com/repos/{AppInfo.GitHubOwner}/{AppInfo.GitHubRepo}/releases/assets/{assetId}";
@@ -489,7 +526,14 @@ internal static class GitHubUpdateService
 
       await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
       await using var file = File.Create(packagePath);
-      await CopyStreamWithProgressAsync(stream, file, response.Content.Headers.ContentLength, 5, 75, progress, cancellationToken).ConfigureAwait(false);
+      await CopyStreamWithProgressAsync(
+        stream,
+        file,
+        response.Content.Headers.ContentLength ?? (expectedSizeBytes > 0 ? expectedSizeBytes : null),
+        5,
+        75,
+        progress,
+        cancellationToken).ConfigureAwait(false);
       return true;
     }
     catch (Exception ex)
@@ -533,6 +577,7 @@ internal static class GitHubUpdateService
     public long AssetId { get; init; }
     public string? Name { get; init; }
     public string? DownloadUrl { get; init; }
+    public long SizeBytes { get; init; }
   }
 
   private static ReleaseAssetInfo? ExtractPreferredAsset(string json)
@@ -586,8 +631,28 @@ internal static class GitHubUpdateService
     {
       AssetId = assetId,
       Name = assetName,
-      DownloadUrl = FindDownloadUrlNearIndex(json, index)
+      DownloadUrl = FindDownloadUrlNearIndex(json, index),
+      SizeBytes = ExtractAssetSizeBytes(json, index)
     };
+  }
+
+  private static long ExtractAssetSizeBytes(string json, int nameIndex)
+  {
+    if (string.IsNullOrWhiteSpace(json) || nameIndex < 0 || nameIndex >= json.Length)
+      return 0;
+
+    var afterName = json.Substring(nameIndex, Math.Min(12000, json.Length - nameIndex));
+    var sizeMatch = Regex.Match(afterName, "\"size\"\\s*:\\s*(\\d+)");
+    if (sizeMatch.Success && long.TryParse(sizeMatch.Groups[1].Value, out var sizeBytes) && sizeBytes > 0)
+      return sizeBytes;
+
+    var beforeStart = Math.Max(0, nameIndex - 4000);
+    var before = json.Substring(beforeStart, nameIndex - beforeStart);
+    var beforeMatch = Regex.Match(before, "\"size\"\\s*:\\s*(\\d+)(?!.*\"size\"\\s*:\\s*\\d+)", RegexOptions.Singleline);
+    if (beforeMatch.Success && long.TryParse(beforeMatch.Groups[1].Value, out sizeBytes) && sizeBytes > 0)
+      return sizeBytes;
+
+    return 0;
   }
 
   private static string? FindDownloadUrlNearIndex(string json, int nameIndex)
@@ -679,8 +744,13 @@ internal static class GitHubUpdateService
       : "Update-Paket konnte nicht heruntergeladen werden.\n\n" + details;
   }
 
-  private static void ReportProgress(IProgress<UpdateProgressInfo>? progress, int percent, string message) =>
-    progress?.Report(new UpdateProgressInfo(percent, message));
+  private static void ReportProgress(
+    IProgress<UpdateProgressInfo>? progress,
+    int percent,
+    string message,
+    long bytesRead = 0,
+    long totalBytes = 0) =>
+    progress?.Report(new UpdateProgressInfo(percent, message, bytesRead, totalBytes));
 
   private static async Task CopyStreamWithProgressAsync(
     Stream source,
@@ -707,7 +777,7 @@ internal static class GitHubUpdateService
       else if (totalRead > 0)
         percent = Math.Min(percentEnd - 1, percentStart + (int)(totalRead / 250000));
 
-      ReportProgress(progress, percent, "Update wird heruntergeladen…");
+      ReportProgress(progress, percent, "Update wird heruntergeladen…", totalRead, totalBytes.GetValueOrDefault());
     }
   }
 

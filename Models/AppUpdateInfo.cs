@@ -10,5 +10,20 @@ public sealed class AppUpdateInfo
   public string AssetName { get; set; } = string.Empty;
   public string ExpectedSha256 { get; set; } = string.Empty;
   public long AssetId { get; set; }
+  public long AssetSizeBytes { get; set; }
   public string ErrorMessage { get; set; } = string.Empty;
+
+  public string AssetSizeDisplay => FormatMegabytes(AssetSizeBytes);
+
+  public static string FormatMegabytes(long bytes)
+  {
+    if (bytes <= 0)
+      return string.Empty;
+
+    var mb = bytes / (1024.0 * 1024.0);
+    return string.Format(
+      System.Globalization.CultureInfo.GetCultureInfo("de-DE"),
+      "{0:0.0} MB",
+      mb);
+  }
 }

@@ -18,6 +18,11 @@ public partial class UpdateAvailableWindow : Window
     VersionTextBlock.Text =
       $"Installiert: {AppInfo.DisplayVersion}   →   Neu: {(_update.ReleaseTag.Length > 0 ? _update.ReleaseTag : "unbekannt")}";
 
+    var sizeText = _update.AssetSizeBytes > 0 ? _update.AssetSizeDisplay : string.Empty;
+    SizeTextBlock.Text = string.IsNullOrWhiteSpace(sizeText)
+      ? "Update-Größe: wird beim Download angezeigt"
+      : "Update-Größe: " + sizeText;
+
     var changeItems = ReleaseNotesFormatter.ExtractChangeItems(_update.ReleaseNotes);
     if (changeItems.Count > 0)
     {
@@ -48,6 +53,9 @@ public partial class UpdateAvailableWindow : Window
     PercentTextBlock.Text = "0 %";
     StatusTextBlock.Text = "Update wird vorbereitet…";
     RemainingTimeTextBlock.Text = "Restlaufzeit wird berechnet…";
+    DownloadSizeTextBlock.Text = string.IsNullOrWhiteSpace(_update.AssetSizeDisplay)
+      ? "Update-Größe: wird geladen…"
+      : "Update-Größe: " + _update.AssetSizeDisplay;
 
     try
     {
@@ -58,7 +66,19 @@ public partial class UpdateAvailableWindow : Window
         StatusTextBlock.Text = message;
         RemainingTimeTextBlock.Text = remaining;
       });
-      var progress = new Progress<UpdateProgressInfo>(presenter.Report);
+      var progress = new Progress<UpdateProgressInfo>(info =>
+      {
+        presenter.Report(info);
+        if (info.TotalBytes > 0)
+        {
+          DownloadSizeTextBlock.Text = AppUpdateInfo.FormatMegabytes(info.BytesRead)
+                                       + " von " + AppUpdateInfo.FormatMegabytes(info.TotalBytes);
+        }
+        else if (info.BytesRead > 0)
+        {
+          DownloadSizeTextBlock.Text = AppUpdateInfo.FormatMegabytes(info.BytesRead) + " geladen";
+        }
+      });
 
       var stagedRoot = await GitHubUpdateService.DownloadAndStageUpdateAsync(_update, progress);
       StatusTextBlock.Text = "Installation wird gestartet…";
