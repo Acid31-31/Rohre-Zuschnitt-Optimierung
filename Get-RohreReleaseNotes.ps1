@@ -47,7 +47,9 @@ function Get-RohreReleaseNotes {
         [Parameter(Mandatory = $true)]
         [string]$RevisionLabel,
 
-        [switch]$IncludeOlder
+        [switch]$IncludeOlder,
+
+        [int]$MaxOlderRevisions = 3
     )
 
     $sections = @(Get-RohreChangelogSections -Root $Root)
@@ -58,6 +60,7 @@ function Get-RohreReleaseNotes {
 
     $items = @($current.Items)
     if ($IncludeOlder) {
+        $olderCount = 0
         foreach ($section in $sections) {
             if ($section.Revision -ge $current.Revision) {
                 continue
@@ -65,6 +68,11 @@ function Get-RohreReleaseNotes {
 
             foreach ($item in $section.Items) {
                 $items += "$($section.Label): $item"
+            }
+
+            $olderCount++
+            if ($olderCount -ge $MaxOlderRevisions) {
+                break
             }
         }
     }
