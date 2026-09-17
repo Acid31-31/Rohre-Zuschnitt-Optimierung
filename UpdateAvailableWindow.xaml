@@ -37,18 +37,20 @@
       <ScrollViewer VerticalScrollBarVisibility="Auto">
         <StackPanel>
           <TextBlock x:Name="VersionTextBlock" FontSize="14" FontWeight="SemiBold" Margin="0,0,0,10"/>
-          <TextBlock Text="Änderungen in diesem Update:"
+          <TextBlock x:Name="ChangesHeadingTextBlock"
+                     Text="Änderungen seit der installierten Version:"
                      FontSize="13"
                      FontWeight="SemiBold"
                      Margin="0,0,0,8"/>
           <ItemsControl x:Name="ChangesItemsControl">
             <ItemsControl.ItemTemplate>
               <DataTemplate>
-                <TextBlock Text="{Binding}"
+                <TextBlock Text="{Binding Text}"
                            TextWrapping="Wrap"
-                           FontSize="12"
-                           Foreground="{DynamicResource TextSecondaryBrush}"
-                           Margin="0,0,0,6"/>
+                           FontSize="{Binding FontSize}"
+                           FontWeight="{Binding Weight}"
+                           Margin="{Binding Margin}"
+                           Foreground="{DynamicResource TextSecondaryBrush}"/>
               </DataTemplate>
             </ItemsControl.ItemTemplate>
           </ItemsControl>

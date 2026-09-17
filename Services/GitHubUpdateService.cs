@@ -60,6 +60,13 @@ internal static class GitHubUpdateService
       result.AssetId = asset.AssetId;
       result.AssetName = asset.Name ?? AppInfo.UpdateAssetFileName;
       result.AssetSizeBytes = asset.SizeBytes;
+
+      var installedRevision = AppInfo.ApplicationVersion.Build;
+      var changelogGroups = await TryLoadChangelogGroupsAsync(cancellationToken).ConfigureAwait(false);
+      result.ReleaseNotes = ReleaseNotesFormatter.ComposeNotesSince(
+        installedRevision,
+        changelogGroups,
+        result.ReleaseNotes);
     }
     catch (Exception ex)
     {
@@ -313,6 +320,101 @@ internal static class GitHubUpdateService
 
     var match = Regex.Match(location, @"/releases/tag/(?<tag>[^/?#]+)", RegexOptions.IgnoreCase);
     return match.Success ? Uri.UnescapeDataString(match.Groups["tag"].Value) : null;
+  }
+
+  private static async Task<IReadOnlyList<ReleaseChangeGroup>> TryLoadChangelogGroupsAsync(
+    CancellationToken cancellationToken)
+  {
+    var markdown = await TryLoadChangelogMarkdownAsync(cancellationToken).ConfigureAwait(false);
+    var groups = ReleaseNotesFormatter.ParseChangelog(markdown ?? string.Empty);
+    if (groups.Count > 0)
+      return groups;
+
+    return await TryLoadChangeGroupsFromAtomAsync(cancellationToken).ConfigureAwait(false);
+  }
+
+  private static async Task<string?> TryLoadChangelogMarkdownAsync(CancellationToken cancellationToken)
+  {
+    try
+    {
+      var changelogUrl = AppInfo.GitHubChangelogUrl;
+      if (!Uri.TryCreate(changelogUrl, UriKind.Absolute, out var uri)
+          || !AppSecurityService.IsTrustedDownloadUrl(uri))
+        return null;
+
+      using var client = CreateHttpClient(TimeSpan.FromSeconds(8));
+      using var request = new HttpRequestMessage(HttpMethod.Get, uri);
+      request.Headers.Accept.Clear();
+      request.Headers.Accept.ParseAdd("text/plain");
+      using var response = await client.SendAsync(request, cancellationToken).ConfigureAwait(false);
+      if (!response.IsSuccessStatusCode)
+        return null;
+
+      var text = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+      return text.Contains("## R", StringComparison.Ordinal) ? text : null;
+    }
+    catch
+    {
+      return null;
+    }
+  }
+
+  private static async Task<IReadOnlyList<ReleaseChangeGroup>> TryLoadChangeGroupsFromAtomAsync(
+    CancellationToken cancellationToken)
+  {
+    try
+    {
+      using var client = CreateHttpClient(TimeSpan.FromSeconds(8));
+      using var response = await client.GetAsync(
+        $"https://github.com/{AppInfo.GitHubOwner}/{AppInfo.GitHubRepo}/releases.atom",
+        cancellationToken).ConfigureAwait(false);
+      if (!response.IsSuccessStatusCode)
+        return Array.Empty<ReleaseChangeGroup>();
+
+      var atom = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+      var groups = new List<ReleaseChangeGroup>();
+      foreach (Match entry in Regex.Matches(
+                 atom,
+                 @"<entry>(?<body>.*?)</entry>",
+                 RegexOptions.IgnoreCase | RegexOptions.Singleline))
+      {
+        var body = entry.Groups["body"].Value;
+        var tagMatch = Regex.Match(
+          body,
+          @"/releases/tag/(?<tag>[^""'/?#<]+)",
+          RegexOptions.IgnoreCase);
+        if (!tagMatch.Success || !TryParseReleaseVersion(tagMatch.Groups["tag"].Value, out var version))
+          continue;
+
+        var contentMatch = Regex.Match(
+          body,
+          @"<content[^>]*>(?<html>.*?)</content>",
+          RegexOptions.IgnoreCase | RegexOptions.Singleline);
+        if (!contentMatch.Success)
+          continue;
+
+        var notes = HtmlToPlainText(WebUtility.HtmlDecode(contentMatch.Groups["html"].Value));
+        var items = ReleaseNotesFormatter.ExtractChangeItems(notes);
+        if (items.Count == 0)
+          continue;
+
+        groups.Add(new ReleaseChangeGroup
+        {
+          RevisionLabel = "R" + version.Build,
+          Revision = version.Build,
+          Items = items
+        });
+      }
+
+      return groups
+        .GroupBy(group => group.Revision)
+        .Select(group => group.First())
+        .ToList();
+    }
+    catch
+    {
+      return Array.Empty<ReleaseChangeGroup>();
+    }
   }
 
   private static async Task<string?> TryLoadReleaseNotesFromAtomAsync(

@@ -3,6 +3,11 @@
 Jede Revision listet die sichtbaren Änderungen für Nutzer.
 Beim Release liest `publish-github-release.ps1` den Abschnitt zur aktuellen Revision.
 
+## R39
+
+- Update-Anzeige listet alle Änderungen seit der installierten Version (nicht nur die neueste)
+- Ein PC der mehrere Revisionen übersprungen hat, sieht R37, R38, R39 usw. in einem Update
+
 ## R38
 
 - Update-Anzeige zeigt die Paketgröße in MB (wie DOK-V01)

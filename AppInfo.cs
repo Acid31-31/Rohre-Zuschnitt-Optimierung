@@ -93,6 +93,9 @@ internal static class AppInfo
   public static string GitHubLatestReleaseApiUrl =>
     $"https://api.github.com/repos/{GitHubOwner}/{GitHubRepo}/releases/latest";
 
+  public static string GitHubChangelogUrl =>
+    $"https://raw.githubusercontent.com/{GitHubOwner}/{GitHubRepo}/master/CHANGELOG.md";
+
   public const string UserDataFolderName = "Daten";
 
   /// <summary>Portabel: alle Arbeitsdaten im Programmordner (USB/Desktop), nicht in AppData.</summary>

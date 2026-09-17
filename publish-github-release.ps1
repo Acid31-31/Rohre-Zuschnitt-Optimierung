@@ -153,7 +153,7 @@ if (Test-Path $zipPath) { Remove-Item $zipPath -Force }
 Compress-Archive -Path (Join-Path $staging "*") -DestinationPath $zipPath -Force
 
 $hash = (Get-FileHash -Path $zipPath -Algorithm SHA256).Hash.ToLowerInvariant()
-$changeItems = Get-RohreReleaseNotes -Root $root -RevisionLabel $buildInfo.RevisionLabel
+$changeItems = Get-RohreReleaseNotes -Root $root -RevisionLabel $buildInfo.RevisionLabel -IncludeOlder
 $changeLines = ($changeItems | ForEach-Object { "- $_" }) -join "`n"
 $notes = @"
 Rohre Zuschnitt Optimierung $Tag ($($buildInfo.RevisionLabel))

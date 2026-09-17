@@ -23,12 +23,10 @@ public partial class UpdateAvailableWindow : Window
       ? "Update-Größe: wird beim Download angezeigt"
       : "Update-Größe: " + sizeText;
 
-    var changeItems = ReleaseNotesFormatter.ExtractChangeItems(_update.ReleaseNotes);
-    if (changeItems.Count > 0)
+    var groups = ReleaseNotesFormatter.ExtractChangeGroups(_update.ReleaseNotes);
+    if (groups.Count > 0)
     {
-      ChangesItemsControl.ItemsSource = changeItems
-        .Select(item => "• " + item)
-        .ToList();
+      ChangesItemsControl.ItemsSource = BuildChangeLines(groups);
       NotesTextBlock.Visibility = Visibility.Collapsed;
     }
     else
@@ -37,6 +35,38 @@ public partial class UpdateAvailableWindow : Window
       NotesTextBlock.Visibility = Visibility.Visible;
       NotesTextBlock.Text = ReleaseNotesFormatter.FormatForDisplay(_update.ReleaseNotes);
     }
+  }
+
+  private static List<UpdateChangeLine> BuildChangeLines(IReadOnlyList<ReleaseChangeGroup> groups)
+  {
+    var lines = new List<UpdateChangeLine>();
+    var showHeaders = groups.Count > 1
+                      && groups.Any(group => !string.IsNullOrWhiteSpace(group.RevisionLabel));
+
+    for (var index = 0; index < groups.Count; index++)
+    {
+      var group = groups[index];
+      if (showHeaders && !string.IsNullOrWhiteSpace(group.RevisionLabel))
+      {
+        lines.Add(new UpdateChangeLine
+        {
+          Text = group.RevisionLabel,
+          IsHeader = true,
+          Margin = new Thickness(0, index == 0 ? 0 : 10, 0, 4)
+        });
+      }
+
+      foreach (var item in group.Items)
+      {
+        lines.Add(new UpdateChangeLine
+        {
+          Text = "• " + item,
+          Margin = new Thickness(0, 0, 0, 6)
+        });
+      }
+    }
+
+    return lines;
   }
 
   private async void UpdateButton_Click(object sender, RoutedEventArgs e)
