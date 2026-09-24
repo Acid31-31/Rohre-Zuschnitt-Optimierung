@@ -8,6 +8,8 @@ public sealed class TrialLicenseStatus
 
   public bool IsFirstRun { get; set; }
 
+  public bool WasExtended { get; set; }
+
   public DateTime FirstRunLocal { get; set; }
 
   public DateTime ExpiresLocal { get; set; }

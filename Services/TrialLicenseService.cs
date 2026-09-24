@@ -36,7 +36,7 @@ internal static class TrialLicenseService
     if (daysRemaining < 0)
       daysRemaining = 0;
 
-    return BuildStatus(record, daysRemaining <= 0, daysRemaining);
+    return BuildStatus(record, daysRemaining <= 0, daysRemaining, record.WasExtended);
   }
 
   public static void MarkWelcomeShown()
@@ -76,6 +76,18 @@ internal static class TrialLicenseService
       if (existing.Tampered)
         return existing;
 
+      if (existing.GrantedPeriodDays < AppInfo.TrialPeriodDays)
+      {
+        existing.FirstRunUtc = nowUtc;
+        existing.LastRunUtc = nowUtc;
+        existing.GrantedPeriodDays = AppInfo.TrialPeriodDays;
+        existing.IsFirstRun = true;
+        existing.WasExtended = true;
+        existing.WelcomeShown = false;
+        Save(existing);
+        return existing;
+      }
+
       if (IsClockRolledBack(existing, nowUtc))
       {
         existing.Tampered = true;
@@ -94,6 +106,7 @@ internal static class TrialLicenseService
       LastRunUtc = nowUtc,
       IsFirstRun = true,
       WelcomeShown = false,
+      GrantedPeriodDays = AppInfo.TrialPeriodDays,
       MachineFingerprint = GetMachineFingerprint()
     };
     Save(created);
@@ -120,6 +133,7 @@ internal static class TrialLicenseService
       var welcomeShown = string.Equals((string?)root.Element("WelcomeShown"), "true", StringComparison.OrdinalIgnoreCase);
       var machineFingerprint = (string?)root.Element("MachineFingerprint") ?? string.Empty;
       var integrity = (string?)root.Element("Integrity") ?? string.Empty;
+      var grantedPeriodDays = ParseInt((string?)root.Element("GrantedPeriodDays"));
 
       var record = new TrialRecord
       {
@@ -127,6 +141,7 @@ internal static class TrialLicenseService
         LastRunUtc = lastRun,
         WelcomeShown = welcomeShown,
         MachineFingerprint = machineFingerprint,
+        GrantedPeriodDays = grantedPeriodDays ?? 0,
         IsFirstRun = false
       };
 
@@ -144,7 +159,7 @@ internal static class TrialLicenseService
       }
 
       if (!string.Equals(machineFingerprint, GetMachineFingerprint(), StringComparison.Ordinal)
-          || !string.Equals(integrity, ComputeIntegrity(record), StringComparison.Ordinal))
+          || !IntegrityMatches(record, integrity))
       {
         record.Tampered = true;
         return record;
@@ -183,7 +198,11 @@ internal static class TrialLicenseService
       VersionLine = AppInfo.EditionLabel + " · ungültig"
     };
 
-  private static TrialLicenseStatus BuildStatus(TrialRecord record, bool expired, int daysRemaining)
+  private static TrialLicenseStatus BuildStatus(
+    TrialRecord record,
+    bool expired,
+    int daysRemaining,
+    bool wasExtended = false)
   {
     var firstRunLocal = record.FirstRunUtc.ToLocalTime().Date;
     var expiresLocal = firstRunLocal.AddDays(AppInfo.TrialPeriodDays);
@@ -203,6 +222,7 @@ internal static class TrialLicenseService
       IsTrialEdition = true,
       IsExpired = expired,
       IsFirstRun = record.IsFirstRun,
+      WasExtended = wasExtended,
       FirstRunLocal = firstRunLocal,
       ExpiresLocal = expiresLocal,
       DaysRemaining = daysRemaining,
@@ -223,8 +243,9 @@ internal static class TrialLicenseService
             new XElement("FirstRunUtc", record.FirstRunUtc.ToString("o", CultureInfo.InvariantCulture)),
             new XElement("LastRunUtc", record.LastRunUtc.ToString("o", CultureInfo.InvariantCulture)),
             new XElement("WelcomeShown", record.WelcomeShown ? "true" : "false"),
+            new XElement("GrantedPeriodDays", record.GrantedPeriodDays.ToString(CultureInfo.InvariantCulture)),
             new XElement("MachineFingerprint", record.MachineFingerprint),
-            new XElement("Integrity", ComputeIntegrity(record))))
+            new XElement("Integrity", ComputeIntegrity(record, includePeriod: true))))
         .Save(StorePath);
     }
     catch
@@ -233,13 +254,19 @@ internal static class TrialLicenseService
     }
   }
 
-  private static string ComputeIntegrity(TrialRecord record)
+  private static bool IntegrityMatches(TrialRecord record, string integrity) =>
+    string.Equals(integrity, ComputeIntegrity(record, includePeriod: true), StringComparison.Ordinal)
+    || string.Equals(integrity, ComputeIntegrity(record, includePeriod: false), StringComparison.Ordinal);
+
+  private static string ComputeIntegrity(TrialRecord record, bool includePeriod = true)
   {
     var payload = string.Join("|",
       record.FirstRunUtc.ToString("o", CultureInfo.InvariantCulture),
       record.LastRunUtc.ToString("o", CultureInfo.InvariantCulture),
       record.WelcomeShown ? "1" : "0",
       record.MachineFingerprint ?? string.Empty);
+    if (includePeriod)
+      payload += "|" + record.GrantedPeriodDays.ToString(CultureInfo.InvariantCulture);
 
     using var hmac = new HMACSHA256(GetIntegrityKey());
     return Convert.ToBase64String(hmac.ComputeHash(Encoding.UTF8.GetBytes(payload)));
@@ -270,6 +297,16 @@ internal static class TrialLicenseService
     return null;
   }
 
+  private static int? ParseInt(string? raw)
+  {
+    if (string.IsNullOrWhiteSpace(raw))
+      return null;
+
+    return int.TryParse(raw, NumberStyles.Integer, CultureInfo.InvariantCulture, out var value)
+      ? value
+      : null;
+  }
+
   private sealed class TrialRecord
   {
     public DateTime FirstRunUtc { get; set; }
@@ -279,6 +316,10 @@ internal static class TrialLicenseService
     public bool WelcomeShown { get; set; }
 
     public bool IsFirstRun { get; set; }
+
+    public bool WasExtended { get; set; }
+
+    public int GrantedPeriodDays { get; set; }
 
     public string MachineFingerprint { get; set; } = string.Empty;
 

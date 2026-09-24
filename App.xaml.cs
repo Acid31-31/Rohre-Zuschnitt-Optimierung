@@ -71,10 +71,14 @@ public partial class App : Application
 
     if (TrialLicenseService.ShouldShowWelcome())
     {
+      var welcome = trialStatus.WasExtended
+        ? "Die Testlaufzeit wurde auf " + AppInfo.TrialPeriodDays + " Tage verlängert.\n\n"
+          + "Gültig bis " + trialStatus.ExpiresLocal.ToString("dd.MM.yyyy") + "."
+        : "Willkommen bei der Testversion von " + AppInfo.ProductName + ".\n\n"
+          + "Die Testversion ist " + AppInfo.TrialPeriodDays + " Tage ab dem ersten Start gültig"
+          + " (bis " + trialStatus.ExpiresLocal.ToString("dd.MM.yyyy") + ").";
       MessageBox.Show(
-        "Willkommen bei der Testversion von " + AppInfo.ProductName + ".\n\n"
-        + "Die Testversion ist " + AppInfo.TrialPeriodDays + " Tage ab dem ersten Start gültig"
-        + " (bis " + trialStatus.ExpiresLocal.ToString("dd.MM.yyyy") + ").",
+        welcome,
         AppInfo.ProductName + " – Testversion",
         MessageBoxButton.OK,
         MessageBoxImage.Information);

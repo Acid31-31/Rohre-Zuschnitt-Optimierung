@@ -3,6 +3,11 @@
 Jede Revision listet die sichtbaren Änderungen für Nutzer.
 Beim Release liest `publish-github-release.ps1` den Abschnitt zur aktuellen Revision.
 
+## R40
+
+- Testlaufzeit wieder 90 Tage; nach diesem Update startet die Frist neu
+- Abgelaufene Testversion: Update prüfen bleibt möglich (nicht mehr nur „Schließen“)
+
 ## R39
 
 - Update-Anzeige listet alle Änderungen seit der installierten Version (nicht nur die neueste)

@@ -30,9 +30,9 @@ internal static class AppInfo
   public const bool IsTrialEdition = true;
 #endif
 
-  public const int TrialPeriodDays = 30;
+  public const int TrialPeriodDays = 90;
 
-  public static string EditionLabel => IsTrialEdition ? "Testversion (30 Tage)" : "Vollversion";
+  public static string EditionLabel => IsTrialEdition ? "Testversion (90 Tage)" : "Vollversion";
 
 #if DEBUG
   public const bool RequireCodeSignature = false;
