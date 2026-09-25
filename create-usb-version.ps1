@@ -188,25 +188,13 @@ Copy-Item $releaseExe (Join-Path $publishDir $vendorKeyName) -Force
 Copy-Item $vendorAllowPath (Join-Path $publishDir $vendorAllowName) -Force
 Write-Host "Schluessel-Tool (nur intern, neben Runtime): $publishDir\$vendorKeyName"
 
-$vendorKeyFolder = Join-Path $root "KEY_Rohre_Zuschitt"
-if (Test-Path $vendorKeyFolder) {
-    Remove-Item $vendorKeyFolder -Recurse -Force -ErrorAction SilentlyContinue
-}
-New-Item -ItemType Directory -Path $vendorKeyFolder -Force | Out-Null
-& robocopy $publishDir $vendorKeyFolder /E /R:2 /W:2 /NFL /NDL /NJH /NJS /NP /XF "*.pdb" /XD Daten | Out-Null
-if ($LASTEXITCODE -ge 8) {
-    throw "KEY_Rohre_Zuschitt-Ordner fehlgeschlagen (robocopy exit $LASTEXITCODE)"
-}
-Copy-Item $releaseExe (Join-Path $vendorKeyFolder $vendorKeyName) -Force
-Copy-Item $vendorAllowPath (Join-Path $vendorKeyFolder $vendorAllowName) -Force
-
 $backupKeyFolder = Join-Path $backupRoot "KEY_Rohre_Zuschitt"
 if (Test-Path $backupKeyFolder) {
     Remove-Item $backupKeyFolder -Recurse -Force -ErrorAction SilentlyContinue
 }
 New-Item -ItemType Directory -Path $backupKeyFolder -Force | Out-Null
-& robocopy $vendorKeyFolder $backupKeyFolder /E /R:2 /W:2 /NFL /NDL /NJH /NJS /NP | Out-Null
-if ($LASTEXITCODE -ge 8) {
+& robocopy $publishDir $backupKeyFolder /E /R:2 /W:2 /NFL /NDL /NJH /NJS /NP /XF "*.pdb" /XD Daten | Out-Null
+if (($LASTEXITCODE -band 8) -ne 0) {
     throw "Absicherung KEY_Rohre_Zuschitt fehlgeschlagen (robocopy exit $LASTEXITCODE)"
 }
 foreach ($orphan in @(
@@ -215,7 +203,7 @@ foreach ($orphan in @(
 )) {
     if (Test-Path $orphan) { Remove-Item $orphan -Force -ErrorAction SilentlyContinue }
 }
-Write-Host "Schluessel-Tool (nur intern): $vendorKeyFolder\$vendorKeyName"
+Write-Host "Schluessel-Tool (nur intern): $backupKeyFolder\$vendorKeyName"
 
 Write-Host "[4/5] Absicherung: $backupRoot"
 New-Item -ItemType Directory -Path $backupProgram -Force | Out-Null
