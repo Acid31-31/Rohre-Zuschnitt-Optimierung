@@ -21,7 +21,7 @@
                  FontSize="20"
                  FontWeight="Bold"
                  Foreground="{DynamicResource SectionHeaderBrush}"/>
-      <TextBlock Text="Einzel-Lizenz: ein PC-Code = ein Schlüssel, nur dieser Rechner. Mehrplatz = mehrere Codes (eine Zeile je PC). Kein gemeinsamer Schlüssel."
+      <TextBlock Text="Ein PC-Code = Schlüssel für alle App-Versionen. Beide Varianten werden erzeugt; der Kunde kann alles auf einmal einfügen."
                  TextWrapping="Wrap"
                  Margin="0,8,0,0"
                  Foreground="{DynamicResource TextSecondaryBrush}"/>

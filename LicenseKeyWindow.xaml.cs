@@ -13,7 +13,7 @@ public partial class LicenseKeyWindow : Window
     Title = "KEY_Rohre_Zuschitt " + AppInfo.RevisionLabel;
     TitleTextBlock.Text = "KEY_Rohre_Zuschitt " + AppInfo.RevisionLabel;
     ThisPcCodeTextBox.Text = LicenseActivationService.GetMachineCode();
-    ThisPcKeyTextBox.Text = LicenseActivationService.GenerateMachineKey();
+    ThisPcKeyTextBox.Text = LicenseActivationService.FormatCompatibleKeys();
   }
 
   private void GenerateCustomerKey_Click(object sender, RoutedEventArgs e)
@@ -26,12 +26,12 @@ public partial class LicenseKeyWindow : Window
     }
 
     if (codes.Count == 1)
-      CustomerKeyTextBox.Text = LicenseActivationService.GenerateMachineKey(codes[0]);
+      CustomerKeyTextBox.Text = LicenseActivationService.FormatCompatibleKeys(codes[0]);
     else
     {
       var lines = new List<string>();
       foreach (var code in codes)
-        lines.Add(code + "  ->  " + LicenseActivationService.GenerateMachineKey(code));
+        lines.Add(code + "  ->  " + LicenseActivationService.FormatCompatibleKeys(code));
       CustomerKeyTextBox.Text = string.Join(Environment.NewLine, lines);
     }
 

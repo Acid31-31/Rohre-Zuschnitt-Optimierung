@@ -72,15 +72,23 @@ internal static class LicenseActivationService
       return true;
     }
 
-    var normalized = NormalizeKey(licenseKey);
-    if (string.IsNullOrWhiteSpace(normalized))
+    if (string.IsNullOrWhiteSpace(licenseKey))
     {
       message = "Bitte einen Lizenzschlüssel eingeben.";
       return false;
     }
 
     var machineCode = GetMachineCode();
-    if (!IsValidMachineKey(normalized, machineCode))
+    string? matched = null;
+    foreach (var candidate in SplitLicenseKeys(licenseKey))
+    {
+      if (!IsValidMachineKey(candidate, machineCode))
+        continue;
+      matched = candidate;
+      break;
+    }
+
+    if (string.IsNullOrWhiteSpace(matched))
     {
       message = "Ungültiger Schlüssel. Die Einzel-Lizenz gilt nur für diesen PC-Code.";
       return false;
@@ -92,10 +100,10 @@ internal static class LicenseActivationService
       new XDocument(
           new XElement("License",
             new XElement("LicenseType", "SinglePc"),
-            new XElement("LicenseKey", normalized),
+            new XElement("LicenseKey", matched),
             new XElement("MachineCode", machineCode),
             new XElement("ActivatedUtc", DateTime.UtcNow.ToString("o", CultureInfo.InvariantCulture)),
-            new XElement("Integrity", ComputeStoreIntegrity(normalized, machineCode))))
+            new XElement("Integrity", ComputeStoreIntegrity(matched, machineCode))))
         .Save(StorePath);
 
       message = "Vollversion freigeschaltet (Einzel-Lizenz, nur dieser PC).";
@@ -106,6 +114,26 @@ internal static class LicenseActivationService
       message = "Freischaltung fehlgeschlagen: " + ex.Message;
       return false;
     }
+  }
+
+  /// <summary>Schlüssel aus altem und neuem KEY-Tool, auch mehrere auf einmal.</summary>
+  public static IReadOnlyList<string> SplitLicenseKeys(string? text)
+  {
+    if (string.IsNullOrWhiteSpace(text))
+      return Array.Empty<string>();
+
+    var list = new List<string>();
+    var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+    foreach (var part in Regex.Split(text.Trim(), @"[\s,;]+"))
+    {
+      var key = NormalizeKey(part);
+      if (string.IsNullOrWhiteSpace(key) || !key.StartsWith(KeyPrefix, StringComparison.OrdinalIgnoreCase))
+        continue;
+      if (seen.Add(key))
+        list.Add(key);
+    }
+
+    return list;
   }
 
   /// <summary>PC-Codes aus Text (eine Zeile je Code, oder Komma/Leerzeichen).</summary>
@@ -127,6 +155,24 @@ internal static class LicenseActivationService
 
     return list;
   }
+
+  /// <summary>Schlüssel für alle App-Revisionen (älter FULL und aktueller SINGLE).</summary>
+  public static IReadOnlyList<string> GenerateCompatibleKeys(string? machineCode = null)
+  {
+    var keys = new List<string>();
+    var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+    foreach (var kind in new[] { "SINGLE", "FULL" })
+    {
+      var key = GenerateMachineKey(machineCode, kind);
+      if (seen.Add(key))
+        keys.Add(key);
+    }
+
+    return keys;
+  }
+
+  public static string FormatCompatibleKeys(string? machineCode = null)
+    => string.Join(" ", GenerateCompatibleKeys(machineCode));
 
   /// <summary>Maschinengebundenen Einzel-Lizenzschlüssel erzeugen (für Anbieter).</summary>
   public static string GenerateMachineKey(string? machineCode = null)

@@ -5,8 +5,8 @@ Beim Release liest `publish-github-release.ps1` den Abschnitt zur aktuellen Revi
 
 ## R45
 
-- Freischaltung akzeptiert auch Schlüssel aus dem älteren KEY-Tool (vorher „Lizenz falsch“)
-- KEY_Rohre_Zuschitt zeigt die Revision, damit nicht die alte Datei gestartet wird
+- Freischaltung akzeptiert Schlüssel aus jeder KEY- und App-Version (alt und neu)
+- KEY_Rohre_Zuschitt erzeugt beide Schlüsselvarianten in einem Rutsch
 
 ## R44
 
