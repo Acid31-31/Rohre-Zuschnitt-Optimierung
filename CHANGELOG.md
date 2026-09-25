@@ -3,6 +3,10 @@
 Jede Revision listet die sichtbaren Änderungen für Nutzer.
 Beim Release liest `publish-github-release.ps1` den Abschnitt zur aktuellen Revision.
 
+## R46
+
+- KEY_Rohre_Zuschitt: weiche Hintergrundmusik, blendet beim Öffnen leise ein
+
 ## R45
 
 - Freischaltung akzeptiert Schlüssel aus jeder KEY- und App-Version (alt und neu)

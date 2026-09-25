@@ -8,12 +8,33 @@ public partial class LicenseKeyWindow : Window
   public LicenseKeyWindow()
   {
     InitializeComponent();
-    Loaded += (_, _) => WindowChromeService.ApplyTheme(this, ThemeService.IsDarkMode);
 
     Title = "KEY_Rohre_Zuschitt " + AppInfo.RevisionLabel;
     TitleTextBlock.Text = "KEY_Rohre_Zuschitt " + AppInfo.RevisionLabel;
     ThisPcCodeTextBox.Text = LicenseActivationService.GetMachineCode();
     ThisPcKeyTextBox.Text = LicenseActivationService.FormatCompatibleKeys();
+
+    Loaded += (_, _) =>
+    {
+      WindowChromeService.ApplyTheme(this, ThemeService.IsDarkMode);
+      Dispatcher.BeginInvoke(() =>
+      {
+        KeyToolChiptunePlayer.Start();
+        RefreshMusicButton();
+      });
+    };
+    Closed += (_, _) => KeyToolChiptunePlayer.Stop();
+  }
+
+  private void MusicToggle_Click(object sender, RoutedEventArgs e)
+  {
+    KeyToolChiptunePlayer.Toggle();
+    RefreshMusicButton();
+  }
+
+  private void RefreshMusicButton()
+  {
+    MusicToggleButton.Content = KeyToolChiptunePlayer.IsPlaying ? "Musik aus" : "Musik an";
   }
 
   private void GenerateCustomerKey_Click(object sender, RoutedEventArgs e)

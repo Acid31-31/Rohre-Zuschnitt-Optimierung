@@ -40,6 +40,7 @@ public partial class App : Application
     if (UsbInstallService.IsLicenseKeyToolLaunch(e.Args))
     {
       new LicenseKeyWindow().ShowDialog();
+      KeyToolChiptunePlayer.Stop();
       Shutdown();
       return;
     }

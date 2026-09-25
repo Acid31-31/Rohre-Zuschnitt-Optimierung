@@ -16,11 +16,16 @@ internal static class UsbInstallService
   {
     var processPath = Environment.ProcessPath ?? string.Empty;
     var fileName = Path.GetFileName(processPath);
-    if (!fileName.Equals(AppInfo.LicenseKeyToolFileName, StringComparison.OrdinalIgnoreCase)
-        && !fileName.Equals("KEY_Rohre_Zuschnitt.exe", StringComparison.OrdinalIgnoreCase))
+    var namedKey = fileName.Equals(AppInfo.LicenseKeyToolFileName, StringComparison.OrdinalIgnoreCase)
+        || fileName.Equals("KEY_Rohre_Zuschnitt.exe", StringComparison.OrdinalIgnoreCase);
+    var argKey = args is not null
+        && args.Any(a => string.Equals(a, "--vendor-key", StringComparison.OrdinalIgnoreCase));
+    if (!namedKey && !argKey)
       return false;
 
     var folder = Path.GetDirectoryName(processPath) ?? string.Empty;
+    if (string.IsNullOrWhiteSpace(folder) || !File.Exists(Path.Combine(folder, "KEY_Rohre_Zuschitt.allow")))
+      folder = AppContext.BaseDirectory.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
     var allowPath = Path.Combine(folder, "KEY_Rohre_Zuschitt.allow");
     return File.Exists(allowPath);
   }

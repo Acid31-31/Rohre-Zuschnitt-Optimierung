@@ -93,13 +93,20 @@
       </Grid>
     </StackPanel>
 
-    <Button Grid.Row="2"
-            Content="Schließen"
-            Click="Close_Click"
-            Style="{DynamicResource SecondaryButtonStyle}"
-            HorizontalAlignment="Right"
-            Width="120"
-            Height="36"
-            Margin="0,18,0,0"/>
+    <Grid Grid.Row="2" Margin="0,18,0,0">
+      <Button x:Name="MusicToggleButton"
+              Content="Musik aus"
+              Click="MusicToggle_Click"
+              Style="{DynamicResource SecondaryButtonStyle}"
+              HorizontalAlignment="Left"
+              Width="120"
+              Height="36"/>
+      <Button Content="Schließen"
+              Click="Close_Click"
+              Style="{DynamicResource SecondaryButtonStyle}"
+              HorizontalAlignment="Right"
+              Width="120"
+              Height="36"/>
+    </Grid>
   </Grid>
 </Window>
