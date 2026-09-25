@@ -2,8 +2,8 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="KEY_Rohre_Zuschitt"
-        Height="520" Width="640"
-        MinHeight="460" MinWidth="560"
+        Height="620" Width="680"
+        MinHeight="540" MinWidth="600"
         WindowStartupLocation="CenterScreen"
         Background="{DynamicResource AppBackgroundBrush}"
         Foreground="{DynamicResource TextPrimaryBrush}"
@@ -20,7 +20,7 @@
                  FontSize="20"
                  FontWeight="Bold"
                  Foreground="{DynamicResource SectionHeaderBrush}"/>
-      <TextBlock Text="Lizenzschlüssel für die Vollversion erzeugen. Den PC-Code bekommst du vom Kunden (Ablauf-Fenster oder Über die Anwendung)."
+      <TextBlock Text="Einzel-Lizenz: ein PC-Code = ein Schlüssel, nur dieser Rechner. Mehrplatz = mehrere Codes (eine Zeile je PC). Kein gemeinsamer Schlüssel."
                  TextWrapping="Wrap"
                  Margin="0,8,0,0"
                  Foreground="{DynamicResource TextSecondaryBrush}"/>
@@ -52,28 +52,43 @@
       </Grid>
 
       <TextBlock Text="Schlüssel für Kunden-PC" FontWeight="SemiBold" Margin="0,0,0,6"/>
-      <TextBlock Text="PC-Code vom Kunden einfügen" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}"/>
+      <TextBlock Text="PC-Code(s) vom Kunden – eine Zeile je PC" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}"/>
       <Grid Margin="0,4,0,10">
         <Grid.ColumnDefinitions>
           <ColumnDefinition Width="*"/>
           <ColumnDefinition Width="10"/>
           <ColumnDefinition Width="Auto"/>
         </Grid.ColumnDefinitions>
-        <TextBox x:Name="CustomerCodeTextBox" Height="34" Padding="10,6" VerticalContentAlignment="Center"
-                 ToolTip="PC-Code aus dem Ablauf-Fenster des Kunden"/>
+        <TextBox x:Name="CustomerCodeTextBox"
+                 Height="72"
+                 Padding="10,6"
+                 AcceptsReturn="True"
+                 TextWrapping="Wrap"
+                 VerticalScrollBarVisibility="Auto"
+                 VerticalContentAlignment="Top"
+                 ToolTip="PC-Code aus Lizenz oder Ablauf-Fenster. Mehrere PCs: eine Zeile je Code."/>
         <Button Grid.Column="2" Content="Erzeugen" Click="GenerateCustomerKey_Click"
-                Style="{DynamicResource AccentButtonStyle}" MinWidth="100" Height="34"/>
+                Style="{DynamicResource AccentButtonStyle}" MinWidth="100" Height="34"
+                VerticalAlignment="Top"/>
       </Grid>
-      <TextBlock Text="Lizenzschlüssel (an den Kunden senden)" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}"/>
+      <TextBlock Text="Lizenzschlüssel (an den Kunden senden, nur den passenden PC)" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}"/>
       <Grid Margin="0,4,0,0">
         <Grid.ColumnDefinitions>
           <ColumnDefinition Width="*"/>
           <ColumnDefinition Width="10"/>
           <ColumnDefinition Width="Auto"/>
         </Grid.ColumnDefinitions>
-        <TextBox x:Name="CustomerKeyTextBox" IsReadOnly="True" Height="34" Padding="10,6" VerticalContentAlignment="Center"/>
+        <TextBox x:Name="CustomerKeyTextBox"
+                 IsReadOnly="True"
+                 Height="88"
+                 Padding="10,6"
+                 TextWrapping="Wrap"
+                 AcceptsReturn="True"
+                 VerticalScrollBarVisibility="Auto"
+                 VerticalContentAlignment="Top"/>
         <Button Grid.Column="2" Content="Kopieren" Click="CopyCustomerKey_Click"
-                Style="{DynamicResource SecondaryButtonStyle}" MinWidth="100" Height="34"/>
+                Style="{DynamicResource SecondaryButtonStyle}" MinWidth="100" Height="34"
+                VerticalAlignment="Top"/>
       </Grid>
     </StackPanel>
 

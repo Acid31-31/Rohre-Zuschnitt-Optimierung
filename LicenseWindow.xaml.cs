@@ -30,8 +30,9 @@ public partial class LicenseWindow : Window
       return;
     }
 
-    StatusTextBlock.Text = status.SummaryText
-      + "\nDen PC-Code kopieren und an den Anbieter senden. Mit dem Lizenzschlüssel die Vollversion freischalten.";
+      StatusTextBlock.Text = status.SummaryText
+      + "\nEinzel-Lizenz: den PC-Code kopieren und an den Anbieter senden."
+      + " Der Schlüssel gilt nur für diesen Rechner. Weitere PCs brauchen jeweils einen eigenen Code.";
   }
 
   private void CopyPcCode_Click(object sender, RoutedEventArgs e)

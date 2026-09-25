@@ -3,6 +3,12 @@
 Jede Revision listet die sichtbaren Änderungen für Nutzer.
 Beim Release liest `publish-github-release.ps1` den Abschnitt zur aktuellen Revision.
 
+## R43
+
+- Einzel-Lizenz: ein PC-Code, ein Schlüssel, nur dieser Rechner
+- Weitere Arbeitsplätze: auf jedem PC den eigenen Code an den Anbieter senden (kein gemeinsamer Schlüssel)
+- Kopieren der App auf einen anderen PC schaltet nicht frei
+
 ## R42
 
 - PC-Code in der App: Knopf „Lizenz“ während der Testzeit, nach Ablauf mit Kopieren und Freischalten

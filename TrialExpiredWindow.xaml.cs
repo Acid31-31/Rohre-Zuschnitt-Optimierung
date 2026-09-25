@@ -23,7 +23,8 @@ public partial class TrialExpiredWindow : Window
     DetailTextBlock.Text =
       "Erststart: " + status.FirstRunLocal.ToString("dd.MM.yyyy")
       + "   |   Gültig bis: " + status.ExpiresLocal.ToString("dd.MM.yyyy")
-      + "\n\nPC-Code kopieren und an den Anbieter senden. Mit dem Lizenzschlüssel die Vollversion freischalten.";
+      + "\n\nEinzel-Lizenz: PC-Code kopieren und an den Anbieter senden."
+      + " Der Schlüssel gilt nur für diesen Rechner. Weitere PCs: dort den eigenen Code schicken.";
 
     PcCodeTextBox.Text = machineCode;
   }

@@ -16,14 +16,23 @@ public partial class LicenseKeyWindow : Window
 
   private void GenerateCustomerKey_Click(object sender, RoutedEventArgs e)
   {
-    var code = CustomerCodeTextBox.Text?.Trim() ?? string.Empty;
-    if (string.IsNullOrWhiteSpace(code))
+    var codes = LicenseActivationService.SplitMachineCodes(CustomerCodeTextBox.Text);
+    if (codes.Count == 0)
     {
-      MessageBox.Show(this, "Bitte den PC-Code vom Kunden einfügen.", Title, MessageBoxButton.OK, MessageBoxImage.Information);
+      MessageBox.Show(this, "Bitte den PC-Code vom Kunden einfügen (eine Zeile je PC).", Title, MessageBoxButton.OK, MessageBoxImage.Information);
       return;
     }
 
-    CustomerKeyTextBox.Text = LicenseActivationService.GenerateMachineKey(code);
+    if (codes.Count == 1)
+      CustomerKeyTextBox.Text = LicenseActivationService.GenerateMachineKey(codes[0]);
+    else
+    {
+      var lines = new List<string>();
+      foreach (var code in codes)
+        lines.Add(code + "  ->  " + LicenseActivationService.GenerateMachineKey(code));
+      CustomerKeyTextBox.Text = string.Join(Environment.NewLine, lines);
+    }
+
     TryCopy(CustomerKeyTextBox.Text);
   }
 

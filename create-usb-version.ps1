@@ -183,11 +183,39 @@ $vendorAllowPath = Join-Path $root $vendorAllowName
 if (-not (Test-Path $vendorAllowPath)) {
     New-Item -ItemType File -Path $vendorAllowPath -Force | Out-Null
 }
+
 Copy-Item $releaseExe (Join-Path $publishDir $vendorKeyName) -Force
 Copy-Item $vendorAllowPath (Join-Path $publishDir $vendorAllowName) -Force
-Copy-Item $releaseExe (Join-Path $backupRoot $vendorKeyName) -Force
-Copy-Item $vendorAllowPath (Join-Path $backupRoot $vendorAllowName) -Force
-Write-Host "Schluessel-Tool (nur intern): $publishDir\$vendorKeyName"
+Write-Host "Schluessel-Tool (nur intern, neben Runtime): $publishDir\$vendorKeyName"
+
+$vendorKeyFolder = Join-Path $root "KEY_Rohre_Zuschitt"
+if (Test-Path $vendorKeyFolder) {
+    Remove-Item $vendorKeyFolder -Recurse -Force -ErrorAction SilentlyContinue
+}
+New-Item -ItemType Directory -Path $vendorKeyFolder -Force | Out-Null
+& robocopy $publishDir $vendorKeyFolder /E /R:2 /W:2 /NFL /NDL /NJH /NJS /NP /XF "*.pdb" /XD Daten | Out-Null
+if ($LASTEXITCODE -ge 8) {
+    throw "KEY_Rohre_Zuschitt-Ordner fehlgeschlagen (robocopy exit $LASTEXITCODE)"
+}
+Copy-Item $releaseExe (Join-Path $vendorKeyFolder $vendorKeyName) -Force
+Copy-Item $vendorAllowPath (Join-Path $vendorKeyFolder $vendorAllowName) -Force
+
+$backupKeyFolder = Join-Path $backupRoot "KEY_Rohre_Zuschitt"
+if (Test-Path $backupKeyFolder) {
+    Remove-Item $backupKeyFolder -Recurse -Force -ErrorAction SilentlyContinue
+}
+New-Item -ItemType Directory -Path $backupKeyFolder -Force | Out-Null
+& robocopy $vendorKeyFolder $backupKeyFolder /E /R:2 /W:2 /NFL /NDL /NJH /NJS /NP | Out-Null
+if ($LASTEXITCODE -ge 8) {
+    throw "Absicherung KEY_Rohre_Zuschitt fehlgeschlagen (robocopy exit $LASTEXITCODE)"
+}
+foreach ($orphan in @(
+    (Join-Path $backupRoot $vendorKeyName),
+    (Join-Path $backupRoot $vendorAllowName)
+)) {
+    if (Test-Path $orphan) { Remove-Item $orphan -Force -ErrorAction SilentlyContinue }
+}
+Write-Host "Schluessel-Tool (nur intern): $vendorKeyFolder\$vendorKeyName"
 
 Write-Host "[4/5] Absicherung: $backupRoot"
 New-Item -ItemType Directory -Path $backupProgram -Force | Out-Null
@@ -207,7 +235,7 @@ $excludeDirNames = @(
     "publish", "Test-Update", "vendor", "Logos", "KEY_Rohre_Zuschitt"
 )
 $excludeFileNames = @(
-    "KEY_Rohre_Zuschitt.exe", "KEY_Rohre_Zuschnitt.exe"
+    "KEY_Rohre_Zuschitt.exe", "KEY_Rohre_Zuschnitt.exe", "KEY_Rohre_Zuschitt.allow"
 )
 Get-ChildItem $root -Force | Where-Object {
     $_.Name -notin $excludeDirNames -and $_.Name -notin $excludeFileNames

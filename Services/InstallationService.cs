@@ -18,6 +18,9 @@ internal static class InstallationService
   {
     AppInfo.UsbLauncherFileName,
     AppInfo.UsbUninstallerFileName,
+    AppInfo.LicenseKeyToolFileName,
+    "KEY_Rohre_Zuschnitt.exe",
+    "KEY_Rohre_Zuschitt.allow",
     "STARTEN.bat",
     "DEINSTALLIEREN.bat",
     "README_USB.txt"

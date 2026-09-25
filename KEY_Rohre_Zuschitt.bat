@@ -13,7 +13,14 @@ if exist "%OUT%\RohreZuschnittOptimierung.exe" (
   exit /b 0
 )
 
+set "PUB=%~dp0publish\win-x64-sc"
+if exist "%PUB%\KEY_Rohre_Zuschitt.exe" if exist "%PUB%\hostfxr.dll" (
+  copy /Y "%ALLOW%" "%PUB%\KEY_Rohre_Zuschitt.allow" >nul
+  start "" /D "%PUB%" "%PUB%\KEY_Rohre_Zuschitt.exe"
+  exit /b 0
+)
+
 echo KEY_Rohre_Zuschitt ist noch nicht gebaut.
-echo Bitte warten oder create-usb-version.ps1 ausfuehren.
+echo Bitte create-usb-version.ps1 ausfuehren, danach diese Datei erneut starten.
 pause
 exit /b 1

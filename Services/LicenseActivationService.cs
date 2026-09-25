@@ -13,9 +13,7 @@ namespace RohreZuschnittOptimierung.Services;
 internal static class LicenseActivationService
 {
   private const string IntegritySalt = "Rohre-Zuschnitt-License-Unlock-v1";
-  private const string MasterPayload = "ENTERPRISE-UNLOCK|*";
   private const string KeyPrefix = "RZO";
-  private const string MasterPrefix = "RZO-FULL";
 
   private static string StorePath => Path.Combine(AppInfo.UserDataDirectory, "license.xml");
 
@@ -41,15 +39,14 @@ internal static class LicenseActivationService
         return false;
 
       var currentMachine = GetMachineCode();
-      if (!string.IsNullOrWhiteSpace(machine)
-          && !string.Equals(machine, currentMachine, StringComparison.OrdinalIgnoreCase)
-          && !IsValidMasterKey(NormalizeKey(key)))
+      if (string.IsNullOrWhiteSpace(machine)
+          || !string.Equals(machine, currentMachine, StringComparison.OrdinalIgnoreCase))
         return false;
 
       if (!string.Equals(integrity, ComputeStoreIntegrity(key, machine), StringComparison.Ordinal))
         return false;
 
-      return IsValidKey(NormalizeKey(key), currentMachine);
+      return IsValidMachineKey(NormalizeKey(key), currentMachine);
     }
     catch
     {
@@ -83,25 +80,25 @@ internal static class LicenseActivationService
     }
 
     var machineCode = GetMachineCode();
-    if (!IsValidKey(normalized, machineCode))
+    if (!IsValidMachineKey(normalized, machineCode))
     {
-      message = "Ungültiger Lizenzschlüssel für diesen PC.";
+      message = "Ungültiger Schlüssel. Die Einzel-Lizenz gilt nur für diesen PC-Code.";
       return false;
     }
 
     try
     {
       Directory.CreateDirectory(Path.GetDirectoryName(StorePath) ?? AppInfo.UserDataDirectory);
-      var storeMachine = IsValidMasterKey(normalized) ? string.Empty : machineCode;
       new XDocument(
           new XElement("License",
+            new XElement("LicenseType", "SinglePc"),
             new XElement("LicenseKey", normalized),
-            new XElement("MachineCode", storeMachine),
+            new XElement("MachineCode", machineCode),
             new XElement("ActivatedUtc", DateTime.UtcNow.ToString("o", CultureInfo.InvariantCulture)),
-            new XElement("Integrity", ComputeStoreIntegrity(normalized, storeMachine))))
+            new XElement("Integrity", ComputeStoreIntegrity(normalized, machineCode))))
         .Save(StorePath);
 
-      message = "Vollversion freigeschaltet.";
+      message = "Vollversion freigeschaltet (Einzel-Lizenz, nur dieser PC).";
       return true;
     }
     catch (Exception ex)
@@ -111,26 +108,33 @@ internal static class LicenseActivationService
     }
   }
 
-  /// <summary>Maschinengebundenen Schlüssel erzeugen (für Anbieter).</summary>
+  /// <summary>PC-Codes aus Text (eine Zeile je Code, oder Komma/Leerzeichen).</summary>
+  public static IReadOnlyList<string> SplitMachineCodes(string? text)
+  {
+    if (string.IsNullOrWhiteSpace(text))
+      return Array.Empty<string>();
+
+    var list = new List<string>();
+    var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+    foreach (var part in Regex.Split(text.Trim(), @"[\s,;]+"))
+    {
+      var code = NormalizeKey(part);
+      if (string.IsNullOrWhiteSpace(code) || code.StartsWith(KeyPrefix, StringComparison.OrdinalIgnoreCase))
+        continue;
+      if (seen.Add(code))
+        list.Add(code);
+    }
+
+    return list;
+  }
+
+  /// <summary>Maschinengebundenen Einzel-Lizenzschlüssel erzeugen (für Anbieter).</summary>
   public static string GenerateMachineKey(string? machineCode = null)
   {
     var code = NormalizeKey(string.IsNullOrWhiteSpace(machineCode) ? GetMachineCode() : machineCode);
-    var digest = ComputeKeyDigest("FULL|" + code);
+    var digest = ComputeKeyDigest("SINGLE|" + code);
     return KeyPrefix + "-" + FormatGroups(digest, 4);
   }
-
-  /// <summary>Universeller Freischalt-Schlüssel (für Anbieter).</summary>
-  public static string GenerateMasterKey()
-  {
-    var digest = ComputeKeyDigest(MasterPayload);
-    return MasterPrefix + "-" + FormatGroups(digest, 4);
-  }
-
-  private static bool IsValidKey(string normalizedKey, string machineCode) =>
-    IsValidMasterKey(normalizedKey) || IsValidMachineKey(normalizedKey, machineCode);
-
-  private static bool IsValidMasterKey(string normalizedKey) =>
-    string.Equals(normalizedKey, NormalizeKey(GenerateMasterKey()), StringComparison.OrdinalIgnoreCase);
 
   private static bool IsValidMachineKey(string normalizedKey, string machineCode)
   {
@@ -169,9 +173,6 @@ internal static class LicenseActivationService
       return string.Empty;
 
     var cleaned = Regex.Replace(key.Trim().ToUpperInvariant(), @"[^A-Z0-9]", string.Empty);
-    if (cleaned.StartsWith("RZOFULL", StringComparison.Ordinal))
-      return MasterPrefix + "-" + FormatGroups(cleaned["RZOFULL".Length..], 4);
-
     if (cleaned.StartsWith("RZO", StringComparison.Ordinal))
       return KeyPrefix + "-" + FormatGroups(cleaned[3..], 4);
 

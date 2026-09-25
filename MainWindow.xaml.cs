@@ -478,7 +478,8 @@ public partial class MainWindow : Window
       + $"Version {AppInfo.DisplayVersion}" + Environment.NewLine
       + _trialStatus.VersionLine + Environment.NewLine + Environment.NewLine
       + trialLine
-      + "PC-Code: " + LicenseActivationService.GetMachineCode() + Environment.NewLine + Environment.NewLine
+      + "PC-Code: " + LicenseActivationService.GetMachineCode() + Environment.NewLine
+      + "Einzel-Lizenz: der Schlüssel gilt nur für diesen PC." + Environment.NewLine + Environment.NewLine
       + "Rohrzuschnitt optimieren, Lagerverwaltung, Auftragsführung, Zuschnittplan-PDF." + Environment.NewLine
       + $"Updates: github.com/{AppInfo.GitHubOwner}/{AppInfo.GitHubRepo}",
       "Über die Anwendung",
