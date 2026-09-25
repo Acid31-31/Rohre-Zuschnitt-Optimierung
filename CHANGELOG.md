@@ -3,6 +3,11 @@
 Jede Revision listet die sichtbaren Änderungen für Nutzer.
 Beim Release liest `publish-github-release.ps1` den Abschnitt zur aktuellen Revision.
 
+## R45
+
+- Freischaltung akzeptiert auch Schlüssel aus dem älteren KEY-Tool (vorher „Lizenz falsch“)
+- KEY_Rohre_Zuschitt zeigt die Revision, damit nicht die alte Datei gestartet wird
+
 ## R44
 
 - Lizenz unter Einstellungen (nicht mehr auf dem Hauptbildschirm)

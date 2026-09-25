@@ -130,9 +130,12 @@ internal static class LicenseActivationService
 
   /// <summary>Maschinengebundenen Einzel-Lizenzschlüssel erzeugen (für Anbieter).</summary>
   public static string GenerateMachineKey(string? machineCode = null)
+    => GenerateMachineKey(machineCode, "SINGLE");
+
+  private static string GenerateMachineKey(string? machineCode, string kind)
   {
     var code = NormalizeKey(string.IsNullOrWhiteSpace(machineCode) ? GetMachineCode() : machineCode);
-    var digest = ComputeKeyDigest("SINGLE|" + code);
+    var digest = ComputeKeyDigest(kind + "|" + code);
     return KeyPrefix + "-" + FormatGroups(digest, 4);
   }
 
@@ -141,10 +144,16 @@ internal static class LicenseActivationService
     if (string.IsNullOrWhiteSpace(machineCode))
       return false;
 
-    return string.Equals(
-      normalizedKey,
-      NormalizeKey(GenerateMachineKey(machineCode)),
-      StringComparison.OrdinalIgnoreCase);
+    foreach (var kind in new[] { "SINGLE", "FULL" })
+    {
+      if (string.Equals(
+            normalizedKey,
+            NormalizeKey(GenerateMachineKey(machineCode, kind)),
+            StringComparison.OrdinalIgnoreCase))
+        return true;
+    }
+
+    return false;
   }
 
   private static string ComputeKeyDigest(string payload)

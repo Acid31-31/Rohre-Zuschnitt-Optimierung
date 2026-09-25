@@ -10,6 +10,8 @@ public partial class LicenseKeyWindow : Window
     InitializeComponent();
     Loaded += (_, _) => WindowChromeService.ApplyTheme(this, ThemeService.IsDarkMode);
 
+    Title = "KEY_Rohre_Zuschitt " + AppInfo.RevisionLabel;
+    TitleTextBlock.Text = "KEY_Rohre_Zuschitt " + AppInfo.RevisionLabel;
     ThisPcCodeTextBox.Text = LicenseActivationService.GetMachineCode();
     ThisPcKeyTextBox.Text = LicenseActivationService.GenerateMachineKey();
   }
