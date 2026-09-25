@@ -3,6 +3,11 @@
 Jede Revision listet die sichtbaren Änderungen für Nutzer.
 Beim Release liest `publish-github-release.ps1` den Abschnitt zur aktuellen Revision.
 
+## R44
+
+- Lizenz unter Einstellungen (nicht mehr auf dem Hauptbildschirm)
+- Freischalten: Einstellungen → Lizenz; nach Ablauf weiterhin im Startfenster
+
 ## R43
 
 - Einzel-Lizenz: ein PC-Code, ein Schlüssel, nur dieser Rechner

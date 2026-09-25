@@ -320,7 +320,14 @@ public partial class MainWindow : Window
   private void OpenPdfSettings_Click(object sender, RoutedEventArgs e)
   {
     var window = new PdfSettingsWindow { Owner = this };
-    if (window.ShowDialog() == true)
+    var saved = window.ShowDialog() == true;
+    if (window.LicenseActivated)
+    {
+      _trialStatus = TrialLicenseService.Evaluate();
+      Title = AppInfo.ProductName + _trialStatus.TitleSuffix;
+    }
+
+    if (saved)
       SyncRemnantsFromWarehouse();
   }
 
@@ -403,7 +410,7 @@ public partial class MainWindow : Window
       + "   Optional: PDF/ZIP per Drag & Drop übernehmen" + Environment.NewLine
       + "3) „Optimieren“ → Schnittplan und PDF" + Environment.NewLine + Environment.NewLine
       + "Lager: Menü „Lager“ für Bestand und Aufträge" + Environment.NewLine
-      + "Einstellungen: Optimierung, Netzwerk, PDF, Vision-KI",
+      + "Einstellungen: Optimierung, Netzwerk, PDF, Vision-KI, Lizenz",
       "Hilfe",
       MessageBoxButton.OK,
       MessageBoxImage.Information);
@@ -450,21 +457,6 @@ public partial class MainWindow : Window
 
   private void ExitApplication_Click(object sender, RoutedEventArgs e) =>
     Close();
-
-  private void OpenLicense_Click(object sender, RoutedEventArgs e)
-  {
-    var dialog = new LicenseWindow
-    {
-      Owner = this,
-      WindowStartupLocation = WindowStartupLocation.CenterOwner
-    };
-    dialog.ShowDialog();
-    if (!dialog.ActivatedFullVersion)
-      return;
-
-    _trialStatus = TrialLicenseService.Evaluate();
-    Title = AppInfo.ProductName + _trialStatus.TitleSuffix;
-  }
 
   private void ShowAbout_Click(object sender, RoutedEventArgs e)
   {

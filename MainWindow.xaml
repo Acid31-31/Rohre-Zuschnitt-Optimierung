@@ -156,15 +156,6 @@
             </StackPanel>
           </Button>
           <Button Style="{StaticResource HeaderUtilityBtn}"
-                  Click="OpenLicense_Click"
-                  Margin="0,0,8,0"
-                  ToolTip="PC-Code anzeigen und Vollversion freischalten">
-            <StackPanel Orientation="Horizontal">
-              <TextBlock Text="🔑" Margin="0,0,6,0"/>
-              <TextBlock Text="Lizenz"/>
-            </StackPanel>
-          </Button>
-          <Button Style="{StaticResource HeaderUtilityBtn}"
                   Click="ShowAbout_Click"
                   Margin="0,0,8,0"
                   ToolTip="Über die Anwendung">
@@ -287,13 +278,6 @@
                 Style="{StaticResource NavBarButtonStyle}"
                 Click="OpenPdfSettings_Click"
                 ToolTip="Einstellungen öffnen"/>
-
-        <Rectangle Style="{StaticResource NavBarDividerStyle}"/>
-
-        <Button Content="Lizenz"
-                Style="{StaticResource NavBarButtonStyle}"
-                Click="OpenLicense_Click"
-                ToolTip="PC-Code anzeigen und Vollversion freischalten"/>
 
         <Rectangle Style="{StaticResource NavBarDividerStyle}"/>
 

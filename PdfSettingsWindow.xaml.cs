@@ -7,6 +7,8 @@ public partial class PdfSettingsWindow : Window
 {
   private bool _anySaved;
 
+  public bool LicenseActivated { get; private set; }
+
   public PdfSettingsWindow()
   {
     InitializeComponent();
@@ -24,6 +26,18 @@ public partial class PdfSettingsWindow : Window
 
   private void OpenVisionAi_Click(object sender, RoutedEventArgs e)
     => OpenCategory(new VisionAiSettingsWindow { Owner = this });
+
+  private void OpenLicense_Click(object sender, RoutedEventArgs e)
+  {
+    var dialog = new LicenseWindow
+    {
+      Owner = this,
+      WindowStartupLocation = WindowStartupLocation.CenterOwner
+    };
+    dialog.ShowDialog();
+    if (dialog.ActivatedFullVersion)
+      LicenseActivated = true;
+  }
 
   private void OpenCategory(Window window)
   {
