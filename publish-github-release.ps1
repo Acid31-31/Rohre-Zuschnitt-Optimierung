@@ -188,7 +188,7 @@ if (-not $gh) {
   exit 0
 }
 
-$releaseArgs = @("release", "create", $Tag, $zipPath, "--title", "Rohre Zuschnitt Optimierung $Tag")
+$releaseArgs = @("release", "create", $Tag, $zipPath, "--repo", "Acid31-31/Rohre-Zuschnitt-Optimierung", "--title", "Rohre Zuschnitt Optimierung $Tag")
 if ($Draft) { $releaseArgs += "--draft" }
 
 $notesPath = Join-Path $env:TEMP "rohre-release-notes-$Tag.txt"
