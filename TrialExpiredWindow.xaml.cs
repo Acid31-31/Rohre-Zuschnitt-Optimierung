@@ -6,12 +6,16 @@ namespace RohreZuschnittOptimierung;
 
 public partial class TrialExpiredWindow : Window
 {
+  public bool ActivatedFullVersion { get; private set; }
+
   public TrialExpiredWindow()
   {
     InitializeComponent();
     Loaded += (_, _) => WindowChromeService.ApplyTheme(this, ThemeService.IsDarkMode);
 
     var status = TrialLicenseService.Evaluate();
+    var machineCode = LicenseActivationService.GetMachineCode();
+
     MessageTextBlock.Text =
       "Die " + AppInfo.TrialPeriodDays + "-Tage-Testversion von " + AppInfo.ProductName
       + " ist abgelaufen.";
@@ -19,8 +23,24 @@ public partial class TrialExpiredWindow : Window
     DetailTextBlock.Text =
       "Erststart: " + status.FirstRunLocal.ToString("dd.MM.yyyy")
       + "   |   Gültig bis: " + status.ExpiresLocal.ToString("dd.MM.yyyy")
-      + "\n\nEin Update verlängert die Testlaufzeit auf " + AppInfo.TrialPeriodDays
-      + " Tage. Bitte Update prüfen oder die neue Version vom USB-Stick installieren.";
+      + "\n\nOption 1: Update installieren (Testlaufzeit 90 Tage in neuer Version)."
+      + "\nOption 2: Lizenzschlüssel eingeben und Vollversion freischalten.";
+
+    MachineCodeTextBlock.Text = "PC-Code (an Anbieter senden): " + machineCode;
+  }
+
+  private void Activate_Click(object sender, RoutedEventArgs e)
+  {
+    if (!LicenseActivationService.TryActivate(LicenseKeyTextBox.Text, out var message))
+    {
+      MessageBox.Show(this, message, "Freischaltung", MessageBoxButton.OK, MessageBoxImage.Warning);
+      return;
+    }
+
+    ActivatedFullVersion = true;
+    MessageBox.Show(this, message, "Freischaltung", MessageBoxButton.OK, MessageBoxImage.Information);
+    DialogResult = true;
+    Close();
   }
 
   private async void Update_Click(object sender, RoutedEventArgs e)
@@ -32,7 +52,13 @@ public partial class TrialExpiredWindow : Window
       var update = await GitHubUpdateService.CheckForUpdateAsync();
       if (!string.IsNullOrWhiteSpace(update.ErrorMessage))
       {
-        MessageBox.Show(this, update.ErrorMessage, "Update-Prüfung", MessageBoxButton.OK, MessageBoxImage.Warning);
+        MessageBox.Show(
+          this,
+          update.ErrorMessage
+          + "\n\nAlternative: Neue Version vom USB-Stick installieren oder Lizenzschlüssel verwenden.",
+          "Update-Prüfung",
+          MessageBoxButton.OK,
+          MessageBoxImage.Warning);
         return;
       }
 
@@ -41,8 +67,7 @@ public partial class TrialExpiredWindow : Window
         MessageBox.Show(
           this,
           "Kein neueres Update gefunden.\n\nBitte die neue Version vom USB-Stick installieren"
-          + " (Ordner Rohre-Zuschnitt). Die Testlaufzeit wird danach auf "
-          + AppInfo.TrialPeriodDays + " Tage verlängert.",
+          + " oder Lizenzschlüssel freischalten.",
           "Update-Prüfung",
           MessageBoxButton.OK,
           MessageBoxImage.Information);
@@ -67,5 +92,9 @@ public partial class TrialExpiredWindow : Window
     }
   }
 
-  private void Close_Click(object sender, RoutedEventArgs e) => Close();
+  private void Close_Click(object sender, RoutedEventArgs e)
+  {
+    DialogResult = false;
+    Close();
+  }
 }

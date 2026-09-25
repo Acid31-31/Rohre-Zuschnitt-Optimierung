@@ -37,6 +37,12 @@ public partial class App : Application
       return;
     }
 
+    if (TryHandleLicenseKeyCommand(e.Args))
+    {
+      Shutdown();
+      return;
+    }
+
     PortableDataMigrationService.TryMigrateLegacyUserData();
     PdfFontBootstrap.EnsureInitialized();
     AppSecurityService.Initialize();
@@ -64,9 +70,15 @@ public partial class App : Application
     var trialStatus = TrialLicenseService.Evaluate();
     if (trialStatus.IsExpired)
     {
-      new TrialExpiredWindow().ShowDialog();
-      Shutdown();
-      return;
+      var expiredWindow = new TrialExpiredWindow();
+      expiredWindow.ShowDialog();
+      if (!expiredWindow.ActivatedFullVersion)
+      {
+        Shutdown();
+        return;
+      }
+
+      trialStatus = TrialLicenseService.Evaluate();
     }
 
     if (TrialLicenseService.ShouldShowWelcome())
@@ -89,5 +101,41 @@ public partial class App : Application
     var mainWindow = new MainWindow(trialStatus);
     mainWindow.Show();
     base.OnStartup(e);
+  }
+
+  private static bool TryHandleLicenseKeyCommand(string[]? args)
+  {
+    if (args is null || args.Length == 0)
+      return false;
+
+    var index = Array.FindIndex(
+      args,
+      static argument => string.Equals(argument, "--license-key", StringComparison.OrdinalIgnoreCase));
+    if (index < 0)
+      return false;
+
+    var machineArg = index + 1 < args.Length ? args[index + 1] : string.Empty;
+    var machineKey = LicenseActivationService.GenerateMachineKey(
+      string.IsNullOrWhiteSpace(machineArg) ? null : machineArg);
+    var masterKey = LicenseActivationService.GenerateMasterKey();
+    var text =
+      "PC-Code: " + LicenseActivationService.GetMachineCode() + Environment.NewLine
+      + "PC-Schlüssel: " + machineKey + Environment.NewLine
+      + "Master-Schlüssel: " + masterKey;
+    try
+    {
+      Clipboard.SetText(machineKey);
+    }
+    catch
+    {
+      // ignore
+    }
+
+    MessageBox.Show(
+      text + Environment.NewLine + Environment.NewLine + "PC-Schlüssel liegt in der Zwischenablage.",
+      AppInfo.ProductName + " – Lizenzschlüssel",
+      MessageBoxButton.OK,
+      MessageBoxImage.Information);
+    return true;
   }
 }

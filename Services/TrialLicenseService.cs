@@ -15,14 +15,17 @@ internal static class TrialLicenseService
 
   public static TrialLicenseStatus Evaluate()
   {
-    if (!AppInfo.IsTrialEdition)
+    if (!AppInfo.IsTrialEdition || LicenseActivationService.IsActivated())
     {
+      var fullLabel = LicenseActivationService.IsActivated() && AppInfo.IsTrialEdition
+        ? "Vollversion (freigeschaltet)"
+        : AppInfo.EditionLabel;
       return new TrialLicenseStatus
       {
         IsTrialEdition = false,
         IsExpired = false,
-        SummaryText = AppInfo.EditionLabel,
-        VersionLine = AppInfo.EditionLabel
+        SummaryText = fullLabel,
+        VersionLine = fullLabel
       };
     }
 
@@ -41,7 +44,7 @@ internal static class TrialLicenseService
 
   public static void MarkWelcomeShown()
   {
-    if (!AppInfo.IsTrialEdition)
+    if (!AppInfo.IsTrialEdition || LicenseActivationService.IsActivated())
       return;
 
     try
@@ -61,7 +64,7 @@ internal static class TrialLicenseService
 
   public static bool ShouldShowWelcome()
   {
-    if (!AppInfo.IsTrialEdition)
+    if (!AppInfo.IsTrialEdition || LicenseActivationService.IsActivated())
       return false;
 
     var record = LoadExisting();

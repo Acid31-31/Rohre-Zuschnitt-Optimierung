@@ -3,6 +3,11 @@
 Jede Revision listet die sichtbaren Änderungen für Nutzer.
 Beim Release liest `publish-github-release.ps1` den Abschnitt zur aktuellen Revision.
 
+## R41
+
+- Freischaltung wie DOK-V01: Lizenzschlüssel im Ablauf-Fenster zur Vollversion
+- PC-Code anzeigen; nach Freischalten läuft die App ohne Testfrist weiter
+
 ## R40
 
 - Testlaufzeit wieder 90 Tage; nach diesem Update startet die Frist neu
