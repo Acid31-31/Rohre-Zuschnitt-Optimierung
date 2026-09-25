@@ -13,30 +13,16 @@ public partial class LicenseWindow : Window
     Loaded += (_, _) =>
     {
       WindowChromeService.ApplyTheme(this, ThemeService.IsDarkMode);
-      if (CanActivate)
+      Dispatcher.BeginInvoke(() =>
       {
-        Dispatcher.BeginInvoke(() =>
-        {
-          KeyToolChiptunePlayer.Start();
-          RefreshMusicButton();
-        });
-      }
-      else
-        MusicToggleButton.Visibility = Visibility.Collapsed;
+        KeyToolChiptunePlayer.Start();
+        RefreshMusicButton();
+      });
     };
     Closed += (_, _) => KeyToolChiptunePlayer.Stop();
 
     PcCodeTextBox.Text = LicenseActivationService.GetMachineCode();
     RefreshStatus();
-  }
-
-  private static bool CanActivate
-  {
-    get
-    {
-      var status = TrialLicenseService.Evaluate();
-      return !LicenseActivationService.IsActivated() && status.IsTrialEdition;
-    }
   }
 
   private void MusicToggle_Click(object sender, RoutedEventArgs e)

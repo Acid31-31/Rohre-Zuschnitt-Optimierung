@@ -3,6 +3,10 @@
 Jede Revision listet die sichtbaren Änderungen für Nutzer.
 Beim Release liest `publish-github-release.ps1` den Abschnitt zur aktuellen Revision.
 
+## R48
+
+- Lizenz-Fenster spielt die Musik auch auf bereits freigeschalteten PCs
+
 ## R47
 
 - Beim Freischalten auf dem Kunden-PC: weiche Musik (Einstellungen → Lizenz und nach Ablauf), blendet leise ein
