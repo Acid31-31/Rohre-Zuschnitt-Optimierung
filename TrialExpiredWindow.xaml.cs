@@ -11,7 +11,16 @@ public partial class TrialExpiredWindow : Window
   public TrialExpiredWindow()
   {
     InitializeComponent();
-    Loaded += (_, _) => WindowChromeService.ApplyTheme(this, ThemeService.IsDarkMode);
+    Loaded += (_, _) =>
+    {
+      WindowChromeService.ApplyTheme(this, ThemeService.IsDarkMode);
+      Dispatcher.BeginInvoke(() =>
+      {
+        KeyToolChiptunePlayer.Start();
+        RefreshMusicButton();
+      });
+    };
+    Closed += (_, _) => KeyToolChiptunePlayer.Stop();
 
     var status = TrialLicenseService.Evaluate();
     var machineCode = LicenseActivationService.GetMachineCode();
@@ -27,6 +36,17 @@ public partial class TrialExpiredWindow : Window
       + " Der Schlüssel gilt nur für diesen Rechner. Weitere PCs: dort den eigenen Code schicken.";
 
     PcCodeTextBox.Text = machineCode;
+  }
+
+  private void MusicToggle_Click(object sender, RoutedEventArgs e)
+  {
+    KeyToolChiptunePlayer.Toggle();
+    RefreshMusicButton();
+  }
+
+  private void RefreshMusicButton()
+  {
+    MusicToggleButton.Content = KeyToolChiptunePlayer.IsPlaying ? "Musik aus" : "Musik an";
   }
 
   private void CopyPcCode_Click(object sender, RoutedEventArgs e)

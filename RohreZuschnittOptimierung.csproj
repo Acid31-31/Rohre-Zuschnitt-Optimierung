@@ -11,9 +11,9 @@
     <ApplicationIcon>Assets\AppIcon.ico</ApplicationIcon>
     <AssemblyTitle>Rohre Zuschnitt Optimierung</AssemblyTitle>
     <Product>Rohre Zuschnitt Optimierung</Product>
-    <Version>1.0.46</Version>
-    <AssemblyVersion>1.0.0.46</AssemblyVersion>
-    <FileVersion>1.0.0.46</FileVersion>
+    <Version>1.0.47</Version>
+    <AssemblyVersion>1.0.0.47</AssemblyVersion>
+    <FileVersion>1.0.0.47</FileVersion>
   </PropertyGroup>
 
   <ItemGroup>

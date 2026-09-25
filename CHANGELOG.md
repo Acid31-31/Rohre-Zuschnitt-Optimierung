@@ -3,6 +3,10 @@
 Jede Revision listet die sichtbaren Änderungen für Nutzer.
 Beim Release liest `publish-github-release.ps1` den Abschnitt zur aktuellen Revision.
 
+## R47
+
+- Beim Freischalten auf dem Kunden-PC: weiche Musik (Einstellungen → Lizenz und nach Ablauf), blendet leise ein
+
 ## R46
 
 - KEY_Rohre_Zuschitt: weiche Hintergrundmusik, blendet beim Öffnen leise ein

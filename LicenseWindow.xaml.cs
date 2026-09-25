@@ -10,10 +10,44 @@ public partial class LicenseWindow : Window
   public LicenseWindow()
   {
     InitializeComponent();
-    Loaded += (_, _) => WindowChromeService.ApplyTheme(this, ThemeService.IsDarkMode);
+    Loaded += (_, _) =>
+    {
+      WindowChromeService.ApplyTheme(this, ThemeService.IsDarkMode);
+      if (CanActivate)
+      {
+        Dispatcher.BeginInvoke(() =>
+        {
+          KeyToolChiptunePlayer.Start();
+          RefreshMusicButton();
+        });
+      }
+      else
+        MusicToggleButton.Visibility = Visibility.Collapsed;
+    };
+    Closed += (_, _) => KeyToolChiptunePlayer.Stop();
 
     PcCodeTextBox.Text = LicenseActivationService.GetMachineCode();
     RefreshStatus();
+  }
+
+  private static bool CanActivate
+  {
+    get
+    {
+      var status = TrialLicenseService.Evaluate();
+      return !LicenseActivationService.IsActivated() && status.IsTrialEdition;
+    }
+  }
+
+  private void MusicToggle_Click(object sender, RoutedEventArgs e)
+  {
+    KeyToolChiptunePlayer.Toggle();
+    RefreshMusicButton();
+  }
+
+  private void RefreshMusicButton()
+  {
+    MusicToggleButton.Content = KeyToolChiptunePlayer.IsPlaying ? "Musik aus" : "Musik an";
   }
 
   private void RefreshStatus()

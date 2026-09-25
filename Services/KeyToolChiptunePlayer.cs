@@ -4,7 +4,7 @@ using System.Media;
 namespace RohreZuschnittOptimierung.Services;
 
 /// <summary>
-/// Eigene weiche Keygen-Melodie nur im KEY-Tool. Startet leise (Einblendung).
+/// Eigene weiche Keygen-Melodie: KEY-Tool und Kunden-Freischaltung. Startet leise (Einblendung).
 /// </summary>
 internal static class KeyToolChiptunePlayer
 {
