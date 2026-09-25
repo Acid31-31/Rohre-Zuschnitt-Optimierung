@@ -28,7 +28,7 @@ public partial class MainWindow : Window
   private List<CutPartEntry> _lastParts = [];
   private WarehouseReservationResult? _lastReservation;
   private string? _lastOrderReference;
-  private readonly TrialLicenseStatus _trialStatus;
+  private TrialLicenseStatus _trialStatus;
   private readonly DispatcherTimer _stopwatchTimer;
   private readonly DispatcherTimer _presenceTimer;
   private readonly Stopwatch _operationStopwatch = new();
@@ -450,6 +450,21 @@ public partial class MainWindow : Window
 
   private void ExitApplication_Click(object sender, RoutedEventArgs e) =>
     Close();
+
+  private void OpenLicense_Click(object sender, RoutedEventArgs e)
+  {
+    var dialog = new LicenseWindow
+    {
+      Owner = this,
+      WindowStartupLocation = WindowStartupLocation.CenterOwner
+    };
+    dialog.ShowDialog();
+    if (!dialog.ActivatedFullVersion)
+      return;
+
+    _trialStatus = TrialLicenseService.Evaluate();
+    Title = AppInfo.ProductName + _trialStatus.TitleSuffix;
+  }
 
   private void ShowAbout_Click(object sender, RoutedEventArgs e)
   {

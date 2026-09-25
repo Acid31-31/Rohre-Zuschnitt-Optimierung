@@ -120,7 +120,7 @@ function Deploy-Package {
         Remove-Item $TargetRoot -Recurse -Force -ErrorAction SilentlyContinue
     }
     New-Item -ItemType Directory -Path $TargetRoot -Force | Out-Null
-    & robocopy $publishDir $TargetRoot /E /R:2 /W:2 /NFL /NDL /NJH /NJS /NP /XF "*.pdb" /XD Daten | Out-Null
+    & robocopy $publishDir $TargetRoot /E /R:2 /W:2 /NFL /NDL /NJH /NJS /NP /XF "*.pdb" "KEY_Rohre_Zuschitt.exe" "KEY_Rohre_Zuschitt.allow" "KEY_Rohre_Zuschnitt.exe" /XD Daten | Out-Null
     if ($LASTEXITCODE -ge 8) {
         throw "Kopie nach $TargetRoot fehlgeschlagen (robocopy exit $LASTEXITCODE)"
     }
@@ -177,6 +177,18 @@ if ((Test-Path $signPackageScript) -and $certInfo.IsAvailable) {
     }
 }
 
+$vendorKeyName = "KEY_Rohre_Zuschitt.exe"
+$vendorAllowName = "KEY_Rohre_Zuschitt.allow"
+$vendorAllowPath = Join-Path $root $vendorAllowName
+if (-not (Test-Path $vendorAllowPath)) {
+    New-Item -ItemType File -Path $vendorAllowPath -Force | Out-Null
+}
+Copy-Item $releaseExe (Join-Path $publishDir $vendorKeyName) -Force
+Copy-Item $vendorAllowPath (Join-Path $publishDir $vendorAllowName) -Force
+Copy-Item $releaseExe (Join-Path $backupRoot $vendorKeyName) -Force
+Copy-Item $vendorAllowPath (Join-Path $backupRoot $vendorAllowName) -Force
+Write-Host "Schluessel-Tool (nur intern): $publishDir\$vendorKeyName"
+
 Write-Host "[4/5] Absicherung: $backupRoot"
 New-Item -ItemType Directory -Path $backupProgram -Force | Out-Null
 & robocopy $zRevFolder $backupProgram /MIR /R:2 /W:2 /NFL /NDL /NJH /NJS /NP /XD Daten | Out-Null
@@ -192,10 +204,13 @@ New-Item -ItemType Directory -Path $stage | Out-Null
 
 $excludeDirNames = @(
     ".git", ".vs", "bin", "obj", "USB-Version", "Release-Version",
-    "publish", "Test-Update", "vendor", "Logos"
+    "publish", "Test-Update", "vendor", "Logos", "KEY_Rohre_Zuschitt"
+)
+$excludeFileNames = @(
+    "KEY_Rohre_Zuschitt.exe", "KEY_Rohre_Zuschnitt.exe"
 )
 Get-ChildItem $root -Force | Where-Object {
-    $_.Name -notin $excludeDirNames
+    $_.Name -notin $excludeDirNames -and $_.Name -notin $excludeFileNames
 } | ForEach-Object {
     Copy-Item $_.FullName -Destination (Join-Path $stage $_.Name) -Recurse -Force
 }

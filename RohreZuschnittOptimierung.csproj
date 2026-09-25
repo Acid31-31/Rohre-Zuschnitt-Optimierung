@@ -11,9 +11,9 @@
     <ApplicationIcon>Assets\AppIcon.ico</ApplicationIcon>
     <AssemblyTitle>Rohre Zuschnitt Optimierung</AssemblyTitle>
     <Product>Rohre Zuschnitt Optimierung</Product>
-    <Version>1.0.41</Version>
-    <AssemblyVersion>1.0.0.41</AssemblyVersion>
-    <FileVersion>1.0.0.41</FileVersion>
+    <Version>1.0.42</Version>
+    <AssemblyVersion>1.0.0.42</AssemblyVersion>
+    <FileVersion>1.0.0.42</FileVersion>
   </PropertyGroup>
 
   <ItemGroup>
@@ -42,8 +42,13 @@
     <None Include="Assets\DrawingLogo.png" CopyToOutputDirectory="PreserveNewest" Link="DrawingLogo.png" Condition="Exists('Assets\DrawingLogo.png')" />
     <EmbeddedResource Include="Assets\DrawingLogo.png" LogicalName="DrawingLogo.png" Condition="Exists('Assets\DrawingLogo.png')" />
     <None Include="LICENSE_DE.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="KEY_Rohre_Zuschitt.allow" CopyToOutputDirectory="PreserveNewest" />
     <None Include="CodeSigning.cer" CopyToOutputDirectory="PreserveNewest" Condition="Exists('CodeSigning.cer')" />
     <None Include="native\pdfium.dll" CopyToOutputDirectory="PreserveNewest" Link="pdfium.dll" Condition="Exists('native\pdfium.dll')" />
   </ItemGroup>
+
+  <Target Name="CopyVendorLicenseKeyTool" AfterTargets="Build">
+    <Copy SourceFiles="$(TargetPath)" DestinationFiles="$(TargetDir)KEY_Rohre_Zuschitt.exe" SkipUnchangedFiles="true" />
+  </Target>
 
 </Project>

@@ -10,6 +10,7 @@ internal static class AppInfo
   public const string ExeFileName = "RohreZuschnittOptimierung.exe";
   public const string UsbLauncherFileName = "Programm installieren.exe";
   public const string UsbUninstallerFileName = "Programm deinstallieren.exe";
+  public const string LicenseKeyToolFileName = "KEY_Rohre_Zuschitt.exe";
   public const string ShortcutFileName = "Rohre Zuschnitt Optimierung.lnk";
   public const string InstallManifestFileName = "install.manifest";
   public const string CodeSigningCerFileName = "CodeSigning.cer";

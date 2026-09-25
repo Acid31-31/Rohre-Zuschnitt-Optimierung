@@ -79,7 +79,7 @@ if (Test-Path $staging) { Remove-Item $staging -Recurse -Force }
 New-Item -ItemType Directory -Path $staging | Out-Null
 
 if ($UseReleaseVersion) {
-  & robocopy $releaseDir $staging /E /R:2 /W:2 /NFL /NDL /NJH /NJS /NP /XF "*.pdb" /XD Daten | Out-Null
+  & robocopy $releaseDir $staging /E /R:2 /W:2 /NFL /NDL /NJH /NJS /NP /XF "*.pdb" "KEY_Rohre_Zuschitt.exe" "KEY_Rohre_Zuschnitt.exe" /XD Daten | Out-Null
   if ($LASTEXITCODE -ge 8) {
     throw "Staging-Kopie fehlgeschlagen (robocopy exit $LASTEXITCODE)"
   }

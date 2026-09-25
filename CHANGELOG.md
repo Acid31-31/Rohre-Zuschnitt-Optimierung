@@ -3,6 +3,11 @@
 Jede Revision listet die sichtbaren Änderungen für Nutzer.
 Beim Release liest `publish-github-release.ps1` den Abschnitt zur aktuellen Revision.
 
+## R42
+
+- PC-Code in der App: Knopf „Lizenz“ während der Testzeit, nach Ablauf mit Kopieren und Freischalten
+- Internes Schlüssel-Tool nur beim Anbieter (nicht auf USB)
+
 ## R41
 
 - Freischaltung wie DOK-V01: Lizenzschlüssel im Ablauf-Fenster zur Vollversion

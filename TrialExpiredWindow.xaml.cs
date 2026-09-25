@@ -23,10 +23,21 @@ public partial class TrialExpiredWindow : Window
     DetailTextBlock.Text =
       "Erststart: " + status.FirstRunLocal.ToString("dd.MM.yyyy")
       + "   |   Gültig bis: " + status.ExpiresLocal.ToString("dd.MM.yyyy")
-      + "\n\nOption 1: Update installieren (Testlaufzeit 90 Tage in neuer Version)."
-      + "\nOption 2: Lizenzschlüssel eingeben und Vollversion freischalten.";
+      + "\n\nPC-Code kopieren und an den Anbieter senden. Mit dem Lizenzschlüssel die Vollversion freischalten.";
 
-    MachineCodeTextBlock.Text = "PC-Code (an Anbieter senden): " + machineCode;
+    PcCodeTextBox.Text = machineCode;
+  }
+
+  private void CopyPcCode_Click(object sender, RoutedEventArgs e)
+  {
+    try
+    {
+      Clipboard.SetText(PcCodeTextBox.Text);
+    }
+    catch
+    {
+      MessageBox.Show(this, "Zwischenablage nicht verfügbar.", Title, MessageBoxButton.OK, MessageBoxImage.Warning);
+    }
   }
 
   private void Activate_Click(object sender, RoutedEventArgs e)

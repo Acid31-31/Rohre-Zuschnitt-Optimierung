@@ -2,8 +2,8 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Testversion abgelaufen"
-        Height="480" Width="580"
-        MinHeight="420" MinWidth="500"
+        Height="520" Width="580"
+        MinHeight="460" MinWidth="500"
         WindowStartupLocation="CenterScreen"
         Background="{DynamicResource AppBackgroundBrush}"
         Foreground="{DynamicResource TextPrimaryBrush}"
@@ -34,15 +34,34 @@
                  Foreground="{DynamicResource TextSecondaryBrush}"
                  Margin="0,10,0,0"/>
 
-      <TextBlock Text="Vollversion freischalten"
+      <TextBlock Text="PC-Code (an den Anbieter senden)"
                  FontSize="13"
                  FontWeight="SemiBold"
                  Margin="0,16,0,6"/>
-      <TextBlock x:Name="MachineCodeTextBlock"
-                 FontSize="12"
-                 Foreground="{DynamicResource TextSecondaryBrush}"
-                 Margin="0,0,0,8"
-                 TextWrapping="Wrap"/>
+      <Grid Margin="0,0,0,12">
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="*"/>
+          <ColumnDefinition Width="10"/>
+          <ColumnDefinition Width="Auto"/>
+        </Grid.ColumnDefinitions>
+        <TextBox x:Name="PcCodeTextBox"
+                 IsReadOnly="True"
+                 Height="36"
+                 Padding="10,6"
+                 FontSize="16"
+                 FontWeight="SemiBold"
+                 VerticalContentAlignment="Center"/>
+        <Button Grid.Column="2"
+                Content="Kopieren"
+                Click="CopyPcCode_Click"
+                Style="{DynamicResource AccentButtonStyle}"
+                MinWidth="110"
+                Height="36"/>
+      </Grid>
+      <TextBlock Text="Lizenzschlüssel vom Anbieter"
+                 FontSize="13"
+                 FontWeight="SemiBold"
+                 Margin="0,0,0,6"/>
       <Grid>
         <Grid.ColumnDefinitions>
           <ColumnDefinition Width="*"/>
